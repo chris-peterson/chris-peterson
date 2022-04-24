@@ -26,8 +26,8 @@ I've created and actively maintain a few projects, including
 #### Contributions to OSS
 
 I've made a few (small) contributions to various projects that I've used throughtout the years, including:
-* [Newtownsoft.Json](https://github.com/JamesNK/Newtonsoft.Json),
-* [Swashbuckle](https://github.com/domaindrivendev/Swashbuckle.WebApi),
-* [Autofac](https://github.com/autofac/Autofac),
+* [Newtownsoft.Json](https://github.com/JamesNK/Newtonsoft.Json)
+* [Swashbuckle](https://github.com/domaindrivendev/Swashbuckle.WebApi)
+* [Autofac](https://github.com/autofac/Autofac)
 * [NHibernate](https://github.com/nhibernate/nhibernate-core)
 * and more :)
