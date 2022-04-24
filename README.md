@@ -11,7 +11,7 @@ a PowerShell wrapper around [GitLab API](https://docs.gitlab.com/ee/api/).
 I use the `GitlabCli` module for performing various tasks that would otherwise be difficult/tedious (e.g. [cloning all the projects in a group](https://github.com/chris-peterson/pwsh-gitlab#clone-gitlabgroup-aka-copy-gitlabgrouptolocalfilesystem)).
 My favorite part of using this module is that it has _implicit context_ based on your working directory making it easy to jump back and forth between
 local code artifacts and remote API resources.  You can invoke APIs, or simply pipe any object to `| go` to navigate to the Web UI, e.g. `mr | go`
-brings you to the [Merge Request UI](https://docs.gitlab.com/ee/user/project/merge_requests/).
+brings you to the [Merge Request UI](https://docs.gitlab.com/ee/user/project/merge_requests/) for your current branch.
 
 Give it a try [here](https://github.com/chris-peterson/pwsh-gitlab#getting-started)
 
