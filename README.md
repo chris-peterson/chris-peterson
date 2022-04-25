@@ -19,6 +19,9 @@ Give it a try [here](https://github.com/chris-peterson/pwsh-gitlab#getting-start
 
 I've created and actively maintain a few projects, including
 
+
+### [Assurance](https://github.com/chris-peterson/assurance#overview)
+
 ### [Kekiri](https://github.com/chris-peterson/kekiri#overview)
 
 ### [Spiffy](https://github.com/chris-peterson/spiffy/#overview)
