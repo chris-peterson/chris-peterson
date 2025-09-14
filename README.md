@@ -18,4 +18,4 @@ Give it a try [here](https://github.com/chris-peterson/pwsh-gitlab#getting-start
 
 # Other
 
-When I'm not writing code, I try my best to be a good human 🤷
+When I'm not writing code, I try my best to [be a good human](https://github.com/chris-peterson/project-human?tab=readme-ov-file#overview)
