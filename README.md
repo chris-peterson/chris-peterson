@@ -2,7 +2,7 @@
 
 👋 Hi, I'm Chris.  I've been writing software for the last couple of decades.
 
-Lately, I've been working on <a href="https://github.com/chris-peterson/pwsh-gitlab?tab=readme-ov-file#gitlabcli"><img src="https://github.com/chris-peterson/pwsh-gitlab/blob/main/assets/icon.png?raw=true" width=32 />`pwsh-gitlab`</a>, a PowerShell wrapper around [GitLab API](https://docs.gitlab.com/ee/api/).
+Lately, I've been working on <a href="https://chris-peterson.github.io/pwsh-gitlab"><img src="https://chris-peterson.github.io/pwsh-gitlab/icon.png?raw=true" width=32 />`pwsh-gitlab`</a>, a PowerShell wrapper around [GitLab API](https://docs.gitlab.com/ee/api/).
 
 The `GitlabCli` module is used to perform tasks that would otherwise be difficult/tedious (e.g. [cloning all the projects in a group](https://github.com/chris-peterson/pwsh-gitlab#clone-gitlabgroup-aka-copy-gitlabgrouptolocalfilesystem)).
 My favorite part of using this module is that it has _implicit context_ based on your working directory making it easy to jump back and forth between
