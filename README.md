@@ -9,13 +9,10 @@ My favorite part of using this module is that it has _implicit context_ based on
 local code artifacts and remote API resources.  You can invoke APIs, or simply pipe any object to `| go` to navigate to the Web UI, e.g. `mr | go`
 brings you to the [Merge Request UI](https://docs.gitlab.com/ee/user/project/merge_requests/) for your current branch.
 
-Give it a try [here](https://github.com/chris-peterson/pwsh-gitlab#getting-started).
+Give it a try [here](https://chris-peterson.github.io/pwsh-gitlab/#/?id=quick-start).
 
 ## Active Projects
+
 * [Assurance](https://github.com/chris-peterson/assurance#overview) - a library to boost confidence when making code changes.
 * [Kekiri](https://github.com/chris-peterson/kekiri#overview) - a testing framework for writing low-ceremony BDD tests using Gherkin language.
 * [Spiffy](https://github.com/chris-peterson/spiffy/#overview) - a battle-tested observability framework for logs and metrics.
-
-# Other
-
-When I'm not writing code, I try my best to [be a good human](https://github.com/chris-peterson/project-human?tab=readme-ov-file#overview)
