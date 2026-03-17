@@ -147,14 +147,21 @@
       // Select clicked
       clickedTab.setAttribute('aria-selected', 'true');
 
-      // Trigger anchor-left animation
+      // Trigger anchor-left animation with fallback timeout
       nav.classList.add('cp-tabs--animating');
+      var navigated = false;
+      function navigate() {
+        if (navigated) return;
+        navigated = true;
+        nav.classList.remove('cp-tabs--animating');
+        window.location.href = url;
+      }
       clickedTab.addEventListener('animationend', function handler() {
         clickedTab.removeEventListener('animationend', handler);
-        nav.classList.remove('cp-tabs--animating');
-        // Navigate after animation completes
-        window.location.href = url;
+        navigate();
       });
+      // Fallback: navigate after 400ms if animationend never fires
+      setTimeout(navigate, 400);
     };
   }
 

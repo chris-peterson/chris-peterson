@@ -459,7 +459,12 @@ section.cover .cover-main > p:last-child a:hover {
     padding: 0 10px;
   }
   .cp-header__brand {
-    display: none;
+    position: static;
+    transform: none;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
   }
   .cp-tab {
     padding: 0 10px;
