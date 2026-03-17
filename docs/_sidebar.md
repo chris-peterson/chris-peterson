@@ -1,0 +1,8 @@
+- [Home](/)
+- **Projects**
+  - [pwsh-gitlab](/projects/pwsh-gitlab)
+  - [Assurance](/projects/assurance)
+  - [Kekiri](/projects/kekiri)
+  - [Spiffy](/projects/spiffy)
+- **Shared Theme**
+  - [Integration Guide](/projects/integration-guide)

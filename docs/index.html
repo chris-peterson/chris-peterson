@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chris Peterson</title>
+  <meta name="description" content="Chris Peterson's open-source projects">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+
+  <!-- Docsify base + shared theme -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css">
+  <link rel="stylesheet" href="shared/theme.css">
+</head>
+<body>
+  <div id="app">Loading...</div>
+
+  <!-- Theme engine (load early to prevent flash) -->
+  <script src="shared/theme.js"></script>
+  <script>
+    CPTheme.init({
+      activeRepo: 'Home'
+    });
+  </script>
+
+  <!-- Docsify config -->
+  <script>
+    window.$docsify = {
+      name: 'Chris Peterson',
+      repo: 'https://github.com/chris-peterson',
+      loadSidebar: true,
+      subMaxLevel: 3,
+      search: {
+        placeholder: 'Search...',
+        noData: 'No results',
+        depth: 3
+      },
+      auto2top: true
+    };
+  </script>
+
+  <!-- Docsify core + plugins -->
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify-copy-code@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-powershell.min.js"></script>
+</body>
+</html>
