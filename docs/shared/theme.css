@@ -1,4 +1,4 @@
-/*! chris-peterson/shared-theme v1.1
+/*! chris-peterson/shared-theme v1.2
  *  Dracula (dark) + Alucard (light) docsify theme
  *  https://draculatheme.com/spec
  *  Include AFTER docsify's base theme CSS.
@@ -50,7 +50,7 @@
   --cp-bg-header:       rgba(33, 34, 44, 0.92);
   --cp-text:            #f8f8f2;
   --cp-text-secondary:  #bfc2d0;
-  --cp-text-muted:      #6272a4;
+  --cp-text-muted:      #8595c2;
   --cp-accent:          #bd93f9;
   --cp-accent-hover:    #ff79c6;
   --cp-pink:            #ff79c6;
@@ -102,27 +102,35 @@ body {
   z-index: 200;
   height: var(--cp-header-height);
   display: flex;
-  align-items: center;
+  align-items: stretch;
   padding: 0 20px;
   background: var(--cp-bg-header);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--cp-border);
   box-shadow: 0 1px 4px var(--cp-shadow);
-  gap: 12px;
+  gap: 0;
+  overflow: hidden;
 }
 
 .cp-header__brand {
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
   font-weight: 700;
-  font-size: 15px;
-  color: var(--cp-text);
+  font-size: 22px;
+  letter-spacing: 0.02em;
+  color: var(--cp-border);
   text-decoration: none;
   white-space: nowrap;
-  flex-shrink: 0;
+  pointer-events: auto;
+  user-select: none;
+  z-index: 0;
 }
 
 .cp-header__brand:hover {
-  color: var(--cp-accent);
+  color: var(--cp-text-muted);
 }
 
 /* ---- Tabs ---- */
@@ -135,6 +143,7 @@ body {
   scrollbar-width: none;
   -ms-overflow-style: none;
   margin-left: 8px;
+  z-index: 1;
 }
 
 .cp-tabs::-webkit-scrollbar { display: none; }
@@ -159,10 +168,10 @@ body {
 .cp-tab::after {
   content: '';
   position: absolute;
-  bottom: 0;
+  bottom: -1px;
   left: 50%;
   width: 0;
-  height: 2.5px;
+  height: 3px;
   background: var(--cp-tab-indicator);
   border-radius: 2px 2px 0 0;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
@@ -197,98 +206,53 @@ body {
 /* ---- Spacer ---- */
 .cp-header__spacer {
   flex: 1;
+  z-index: 1;
 }
 
-/* ---- Theme pill ---- */
-.cp-theme-pill {
+/* ---- Theme toggle button (icon-based) ---- */
+.cp-theme-toggle {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 14px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--cp-pill-fg);
+  justify-content: center;
+  align-self: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   background: var(--cp-pill-bg);
   border: 1px solid var(--cp-border);
-  border-radius: 50px;
+  border-radius: 50%;
   cursor: pointer;
-  user-select: none;
-  white-space: nowrap;
   flex-shrink: 0;
+  color: var(--cp-text);
   box-shadow: 0 1px 3px var(--cp-shadow);
+  z-index: 1;
 }
 
-.cp-theme-pill:hover {
+.cp-theme-toggle:hover {
   box-shadow: 0 2px 8px var(--cp-shadow);
   transform: translateY(-1px);
 }
 
-.cp-theme-pill:active {
+.cp-theme-toggle:active {
   transform: translateY(0);
 }
 
-.cp-theme-pill__icon {
-  font-size: 14px;
-  line-height: 1;
+.cp-theme-toggle svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
   transition: transform 0.3s ease;
 }
 
-.cp-theme-pill:hover .cp-theme-pill__icon {
+.cp-theme-toggle:hover svg {
   transform: rotate(20deg);
 }
 
-/* ---- Checkbox toggle (accessible) ---- */
-.cp-theme-check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--cp-text-secondary);
-  cursor: pointer;
-  user-select: none;
-  flex-shrink: 0;
-}
-
-.cp-theme-check input[type="checkbox"] {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 40px;
-  height: 22px;
-  background: var(--cp-pill-bg);
-  border: 1px solid var(--cp-border);
-  border-radius: 11px;
-  position: relative;
-  cursor: pointer;
-  transition: background 0.2s ease;
-  flex-shrink: 0;
-}
-
-.cp-theme-check input[type="checkbox"]::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  background: white;
-  border-radius: 50%;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.cp-theme-check input[type="checkbox"]:checked {
-  background: var(--cp-accent);
-  border-color: var(--cp-accent);
-}
-
-.cp-theme-check input[type="checkbox"]:checked::after {
-  transform: translateX(18px);
-}
-
-.cp-theme-check__label {
-  font-size: 12px;
-  letter-spacing: 0.02em;
-}
+/* Show sun in dark mode, moon in light mode */
+.cp-theme-toggle__sun { display: none; }
+.cp-theme-toggle__moon { display: block; }
+[data-theme="dark"] .cp-theme-toggle__sun { display: block; }
+[data-theme="dark"] .cp-theme-toggle__moon { display: none; }
 
 /* ================================================================
    Push docsify content below header
@@ -354,6 +318,10 @@ body.cp-has-header section.sidebar-toggle {
 .markdown-section h1 {
   border-bottom: 2px solid var(--cp-border);
   padding-bottom: 0.35em;
+}
+
+.markdown-section h2 {
+  color: var(--cp-accent) !important;
 }
 
 .markdown-section a {
@@ -489,13 +457,12 @@ section.cover .cover-main > p:last-child a:hover {
 @media (max-width: 600px) {
   .cp-header {
     padding: 0 10px;
-    gap: 8px;
+  }
+  .cp-header__brand {
+    display: none;
   }
   .cp-tab {
     padding: 0 10px;
     font-size: 12px;
-  }
-  .cp-theme-check__label {
-    display: none;
   }
 }

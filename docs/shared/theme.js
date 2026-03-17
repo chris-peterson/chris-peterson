@@ -1,5 +1,5 @@
 /*!
- * chris-peterson/shared-theme v1.0
+ * chris-peterson/shared-theme v1.2
  * Dark/light theme engine + header with repo tabs
  *
  * Usage:
@@ -43,16 +43,6 @@
 
   function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
-    // Update all toggle controls on the page
-    var checks = document.querySelectorAll('.cp-theme-check input');
-    for (var i = 0; i < checks.length; i++) {
-      checks[i].checked = (theme === 'dark');
-    }
-    var pills = document.querySelectorAll('.cp-theme-pill');
-    for (var j = 0; j < pills.length; j++) {
-      var icon = pills[j].querySelector('.cp-theme-pill__icon');
-      if (icon) icon.textContent = theme === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19';
-    }
   }
 
   function toggleTheme() {
@@ -123,23 +113,20 @@
     spacer.className = 'cp-header__spacer';
     header.appendChild(spacer);
 
-    // Theme toggle (checkbox style)
-    var label = document.createElement('label');
-    label.className = 'cp-theme-check';
-
-    var cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.checked = (getPreferredTheme() === 'dark');
-    cb.setAttribute('aria-label', 'Toggle dark mode');
-    cb.addEventListener('change', function () { toggleTheme(); });
-
-    var span = document.createElement('span');
-    span.className = 'cp-theme-check__label';
-    span.textContent = 'Dark mode';
-
-    label.appendChild(cb);
-    label.appendChild(span);
-    header.appendChild(label);
+    // Theme toggle (icon button)
+    var btn = document.createElement('button');
+    btn.className = 'cp-theme-toggle';
+    btn.type = 'button';
+    btn.setAttribute('aria-label', 'Toggle dark mode');
+    btn.innerHTML =
+      '<svg class="cp-theme-toggle__sun" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
+        '<path d="M12 18a6 6 0 1 1 0-12 6 6 0 0 1 0 12zm0-2a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM11 1h2v3h-2V1zm0 19h2v3h-2v-3zM3.515 4.929l1.414-1.414L7.05 5.636 5.636 7.05 3.515 4.93zM16.95 18.364l1.414-1.414 2.121 2.121-1.414 1.414-2.121-2.121zm2.121-14.85l1.414 1.415-2.121 2.121-1.414-1.414 2.121-2.121zM5.636 16.95l1.414 1.414-2.121 2.121-1.414-1.414 2.121-2.121zM23 11v2h-3v-2h3zM4 11v2H1v-2h3z"/>' +
+      '</svg>' +
+      '<svg class="cp-theme-toggle__moon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
+        '<path d="M10 7a7 7 0 0 0 12 4.9v.1c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2h.1A6.979 6.979 0 0 0 10 7zm-6 5a8 8 0 0 0 15.062 3.762A9 9 0 0 1 8.238 4.938 7.999 7.999 0 0 0 4 12z"/>' +
+      '</svg>';
+    btn.addEventListener('click', function () { toggleTheme(); });
+    header.appendChild(btn);
 
     return header;
   }
