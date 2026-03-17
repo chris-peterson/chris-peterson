@@ -1,32 +1,20 @@
 /*!
- * chris-peterson/shared-theme v1.2
- * Dark/light theme engine + header with repo tabs
+ * chris-peterson/shared-theme v2.0
+ * Dark/light theme engine + breadcrumb header
  *
  * Usage:
  *   <script src="https://chris-peterson.github.io/chris-peterson/shared/theme.js"></script>
  *   <script>
  *     CPTheme.init({
- *       activeRepo: 'pwsh-gitlab',      // highlight this tab
- *       brand:      'Chris Peterson',    // header brand text (optional)
+ *       activeRepo: 'pwsh-gitlab',      // current project (shown in breadcrumb)
+ *       brand:      'Chris Peterson',    // root breadcrumb text (optional)
  *       brandUrl:   'https://chris-peterson.github.io/chris-peterson/', // (optional)
- *       repos: [                         // override default tabs (optional)
- *         { name: 'pwsh-gitlab', url: 'https://chris-peterson.github.io/pwsh-gitlab/' },
- *         ...
- *       ]
  *     });
  *   </script>
  */
 
 (function (root) {
   'use strict';
-
-  /* ---------------------------------------------------------------
-     Default repo list — edit here to add/remove global tabs
-     --------------------------------------------------------------- */
-  var DEFAULT_REPOS = [
-    { name: 'Home',         url: 'https://chris-peterson.github.io/chris-peterson/' },
-    { name: 'pwsh-gitlab',  url: 'https://chris-peterson.github.io/pwsh-gitlab/' }
-  ];
 
   var DEFAULT_BRAND     = 'Chris Peterson';
   var DEFAULT_BRAND_URL = 'https://chris-peterson.github.io/chris-peterson/';
@@ -68,42 +56,38 @@
      Build header DOM
      --------------------------------------------------------------- */
   function buildHeader(opts) {
-    var repos     = opts.repos     || DEFAULT_REPOS;
-    var brand     = opts.brand     || DEFAULT_BRAND;
-    var brandUrl  = opts.brandUrl  || DEFAULT_BRAND_URL;
-    var activeRepo = (opts.activeRepo || '').toLowerCase();
+    var brand      = opts.brand     || DEFAULT_BRAND;
+    var brandUrl   = opts.brandUrl  || DEFAULT_BRAND_URL;
+    var activeRepo = opts.activeRepo || '';
 
     var header = document.createElement('header');
     header.className = 'cp-header';
     header.setAttribute('role', 'banner');
 
-    // Brand
-    var a = document.createElement('a');
-    a.className = 'cp-header__brand';
-    a.href = brandUrl;
-    a.textContent = brand;
-    header.appendChild(a);
-
-    // Tabs
+    // Breadcrumb nav
     var nav = document.createElement('nav');
-    nav.className = 'cp-tabs';
-    nav.setAttribute('role', 'tablist');
+    nav.className = 'cp-breadcrumb';
+    nav.setAttribute('aria-label', 'Breadcrumb');
 
-    for (var i = 0; i < repos.length; i++) {
-      var repo = repos[i];
-      var tab = document.createElement('a');
-      tab.className = 'cp-tab';
-      tab.setAttribute('role', 'tab');
-      tab.href = repo.url;
-      tab.textContent = repo.name;
+    // Root link
+    var rootLink = document.createElement('a');
+    rootLink.className = 'cp-breadcrumb__link';
+    rootLink.href = brandUrl;
+    rootLink.textContent = brand;
+    nav.appendChild(rootLink);
 
-      var isActive = repo.name.toLowerCase() === activeRepo;
-      tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    // If we have an active repo (not Home), show the separator + project name
+    if (activeRepo && activeRepo.toLowerCase() !== 'home') {
+      var sep = document.createElement('span');
+      sep.className = 'cp-breadcrumb__sep';
+      sep.setAttribute('aria-hidden', 'true');
+      sep.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" fill="currentColor"/></svg>';
+      nav.appendChild(sep);
 
-      if (!isActive) {
-        tab.addEventListener('click', makeTabHandler(nav, tab, repo.url));
-      }
-      nav.appendChild(tab);
+      var project = document.createElement('span');
+      project.className = 'cp-breadcrumb__current';
+      project.textContent = activeRepo;
+      nav.appendChild(project);
     }
 
     header.appendChild(nav);
@@ -129,40 +113,6 @@
     header.appendChild(btn);
 
     return header;
-  }
-
-  /* ---------------------------------------------------------------
-     Tab click handler — animate, then navigate
-     --------------------------------------------------------------- */
-  function makeTabHandler(nav, clickedTab, url) {
-    return function (e) {
-      e.preventDefault();
-
-      // Deselect all
-      var tabs = nav.querySelectorAll('.cp-tab');
-      for (var i = 0; i < tabs.length; i++) {
-        tabs[i].setAttribute('aria-selected', 'false');
-      }
-
-      // Select clicked
-      clickedTab.setAttribute('aria-selected', 'true');
-
-      // Trigger anchor-left animation with fallback timeout
-      nav.classList.add('cp-tabs--animating');
-      var navigated = false;
-      function navigate() {
-        if (navigated) return;
-        navigated = true;
-        nav.classList.remove('cp-tabs--animating');
-        window.location.href = url;
-      }
-      clickedTab.addEventListener('animationend', function handler() {
-        clickedTab.removeEventListener('animationend', handler);
-        navigate();
-      });
-      // Fallback: navigate after 400ms if animationend never fires
-      setTimeout(navigate, 400);
-    };
   }
 
   /* ---------------------------------------------------------------

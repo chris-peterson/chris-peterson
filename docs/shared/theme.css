@@ -1,4 +1,4 @@
-/*! chris-peterson/shared-theme v1.2
+/*! chris-peterson/shared-theme v2.0
  *  Dracula (dark) + Alucard (light) docsify theme
  *  https://draculatheme.com/spec
  *  Include AFTER docsify's base theme CSS.
@@ -39,7 +39,6 @@
   --cp-shadow:          rgba(0,0,0,0.06);
   --cp-radius:          8px;
   --cp-header-height:   56px;
-  --cp-tab-indicator:   #644ac9;
 }
 
 [data-theme="dark"] {
@@ -68,7 +67,6 @@
   --cp-pill-bg:         #44475a;
   --cp-pill-fg:         #f8f8f2;
   --cp-shadow:          rgba(0,0,0,0.25);
-  --cp-tab-indicator:   #ff79c6;
 }
 
 /* ================================================================
@@ -102,105 +100,49 @@ body {
   z-index: 200;
   height: var(--cp-header-height);
   display: flex;
-  align-items: stretch;
+  align-items: center;
   padding: 0 20px;
   background: var(--cp-bg-header);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--cp-border);
   box-shadow: 0 1px 4px var(--cp-shadow);
-  gap: 0;
-  overflow: hidden;
 }
 
-.cp-header__brand {
-  position: absolute;
-  left: 20px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-weight: 700;
-  font-size: 22px;
-  letter-spacing: 0.02em;
-  color: var(--cp-border);
-  text-decoration: none;
-  white-space: nowrap;
-  pointer-events: auto;
-  user-select: none;
-  z-index: 0;
-}
-
-.cp-header__brand:hover {
-  color: var(--cp-text-muted);
-}
-
-/* ---- Tabs ---- */
-.cp-tabs {
-  display: flex;
-  align-items: stretch;
-  gap: 2px;
-  height: 100%;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  margin-left: 8px;
-  z-index: 1;
-}
-
-.cp-tabs::-webkit-scrollbar { display: none; }
-
-.cp-tab {
-  position: relative;
+/* ---- Breadcrumb ---- */
+.cp-breadcrumb {
   display: flex;
   align-items: center;
-  padding: 0 16px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--cp-text-muted);
+  gap: 4px;
+  min-width: 0;
+}
+
+.cp-breadcrumb__link {
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--cp-text) !important;
   text-decoration: none;
   white-space: nowrap;
-  cursor: pointer;
-  background: transparent;
-  border: none;
-  outline: none;
-  user-select: none;
 }
 
-.cp-tab::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 50%;
-  width: 0;
-  height: 3px;
-  background: var(--cp-tab-indicator);
-  border-radius: 2px 2px 0 0;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+.cp-breadcrumb__link:hover {
+  color: var(--cp-accent) !important;
 }
 
-.cp-tab:hover {
-  color: var(--cp-text-secondary);
+.cp-breadcrumb__sep {
+  display: flex;
+  align-items: center;
+  color: var(--cp-text-muted);
+  flex-shrink: 0;
 }
 
-.cp-tab[aria-selected="true"] {
-  color: var(--cp-text);
-  font-weight: 600;
-}
-
-.cp-tab[aria-selected="true"]::after {
-  width: 100%;
-  left: 0;
-}
-
-/* Slide-in animation: selected tab anchors left */
-.cp-tabs--animating .cp-tab[aria-selected="true"] {
-  animation: cp-tab-anchor 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-@keyframes cp-tab-anchor {
-  0%   { transform: translateX(0); opacity: 0.7; }
-  50%  { transform: translateX(-6px); opacity: 1; }
-  100% { transform: translateX(0); opacity: 1; }
+.cp-breadcrumb__current {
+  font-weight: 500;
+  font-size: 18px;
+  color: var(--cp-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---- Spacer ---- */
@@ -456,18 +398,10 @@ section.cover .cover-main > p:last-child a:hover {
    ================================================================ */
 @media (max-width: 600px) {
   .cp-header {
-    padding: 0 10px;
+    padding: 0 12px;
   }
-  .cp-header__brand {
-    position: static;
-    transform: none;
-    font-size: 16px;
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-  }
-  .cp-tab {
-    padding: 0 10px;
-    font-size: 12px;
+  .cp-breadcrumb__link,
+  .cp-breadcrumb__current {
+    font-size: 15px;
   }
 }
