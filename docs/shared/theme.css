@@ -139,10 +139,15 @@ body {
 .cp-breadcrumb__current {
   font-weight: 500;
   font-size: 18px;
-  color: var(--cp-text-muted);
+  color: var(--cp-text-muted) !important;
+  text-decoration: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.cp-breadcrumb__current:hover {
+  color: var(--cp-accent) !important;
 }
 
 /* ---- Spacer ---- */

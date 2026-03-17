@@ -7,6 +7,7 @@
  *   <script>
  *     CPTheme.init({
  *       activeRepo: 'pwsh-gitlab',      // current project (shown in breadcrumb)
+ *       repoUrl:    'https://chris-peterson.github.io/pwsh-gitlab/', // project home link (optional)
  *       brand:      'Chris Peterson',    // root breadcrumb text (optional)
  *       brandUrl:   'https://chris-peterson.github.io/chris-peterson/', // (optional)
  *     });
@@ -84,8 +85,9 @@
       sep.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" fill="currentColor"/></svg>';
       nav.appendChild(sep);
 
-      var project = document.createElement('span');
+      var project = document.createElement('a');
       project.className = 'cp-breadcrumb__current';
+      project.href = opts.repoUrl || '#';
       project.textContent = activeRepo;
       nav.appendChild(project);
     }
