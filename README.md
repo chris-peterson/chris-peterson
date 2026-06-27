@@ -1,5 +1,5 @@
 # Overview
 
-Hi, I'm Chris. I've been writing software for the last couple of decades.
+Hi, I'm Chris. I've been writing software for the last few decades.
 
-Check out my projects at [chris-peterson.github.io](https://chris-peterson.github.io).
+Check out my recent work on AI-assisted development at [bridge.ai](https://chris-peterson.github.io/claude-marketplace/#/)
