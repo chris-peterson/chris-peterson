@@ -7,10 +7,12 @@
 <p>
   <picture><img alt="C#" src="https://img.shields.io/badge/-C%23-21222C?style=flat-square&labelColor=21222C"></picture>
   <picture><img alt="PowerShell" src="https://img.shields.io/badge/-PowerShell-21222C?style=flat-square&labelColor=21222C"></picture>
-  <picture><img alt="Python" src="https://img.shields.io/badge/-Python-21222C?style=flat-square&labelColor=21222C"></picture>
   <picture><img alt="TypeScript" src="https://img.shields.io/badge/-TypeScript-21222C?style=flat-square&labelColor=21222C"></picture>
+  <picture><img alt="Python" src="https://img.shields.io/badge/-Python-21222C?style=flat-square&labelColor=21222C"></picture>
   <picture><img alt="Go" src="https://img.shields.io/badge/-Go-21222C?style=flat-square&labelColor=21222C"></picture>
-  <picture><img alt="Shell" src="https://img.shields.io/badge/-Shell-21222C?style=flat-square&labelColor=21222C"></picture>
+  <picture><img alt="Docker" src="https://img.shields.io/badge/-Docker-21222C?style=flat-square&labelColor=21222C"></picture>
+  <picture><img alt="CI/CD" src="https://img.shields.io/badge/-CI/CD-21222C?style=flat-square&labelColor=21222C"></picture>
+  <picture><img alt="AWS" src="https://img.shields.io/badge/-AWS-21222C?style=flat-square&labelColor=21222C"></picture>
 </p>
 
 ## Current Focus
