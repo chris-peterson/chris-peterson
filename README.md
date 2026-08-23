@@ -1,11 +1,10 @@
-<a href="https://github.com/chris-peterson"><img align="right" alt="Follow chris-peterson on GitHub" src="https://img.shields.io/github/followers/chris-peterson?style=for-the-badge&logo=github&logoColor=F8F8F2&label=Follow&labelColor=282A36&color=BD93F9"></a>
-<h1 align="center">Chris Peterson</h1>
+<h1>Chris Peterson</h1>
 
-<p align="center">
-  I've been writing software for the past few decades.<br>
+<p>
+  I've been writing software for the past few decades
 </p>
 
-<p align="center">
+<p>
   <picture><img alt="C#" src="https://img.shields.io/badge/-C%23-21222C?style=flat-square&labelColor=21222C"></picture>
   <picture><img alt="PowerShell" src="https://img.shields.io/badge/-PowerShell-21222C?style=flat-square&labelColor=21222C"></picture>
   <picture><img alt="Python" src="https://img.shields.io/badge/-Python-21222C?style=flat-square&labelColor=21222C"></picture>
@@ -14,12 +13,9 @@
   <picture><img alt="Shell" src="https://img.shields.io/badge/-Shell-21222C?style=flat-square&labelColor=21222C"></picture>
 </p>
 
+## Current Focus
 <p>
   <a href="https://chris-peterson.github.io/claude-marketplace/#/"><img alt="bridge.ai" src="assets/bridge-ai.svg" width="440"></a>
-</p>
-
-<p>
-  Tools for navigating the uncharted waters of AI-assisted software development.
 </p>
 
 | | |
@@ -44,8 +40,6 @@
 | [![pwsh-fmd](https://img.shields.io/badge/pwsh--fmd-343746?style=flat-square)](https://chris-peterson.github.io/pwsh-fmd/) | [![stars](https://img.shields.io/github/stars/chris-peterson/pwsh-fmd?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341)](https://github.com/chris-peterson/pwsh-fmd) | PowerShell objects to Markdown tables |
 
 ## Upstream Contributions
-
-I make a concerted effort to contribute back to the frameworks I build on, going back to 2013. Each badge counts what's merged there, and links the search behind the number.
 
 <p>
   <a href="https://github.com/andyalm/consul-rx/pulls?q=is%3Apr+author%3Achris-peterson+is%3Amerged"><img alt="andyalm/consul-rx" title="Dependencies modernized, CONSUL_HTTP_ADDR honored, endpoints normalized for bare host:port" src="https://img.shields.io/github/issues-search?query=repo%3Aandyalm%2Fconsul-rx%20is%3Apr%20author%3Achris-peterson%20is%3Amerged&style=flat-square&label=andyalm%2Fconsul-rx&labelColor=282A36&color=343746&logo=consul&logoColor=FF79C6"></a>
