@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 200" width="640" height="200" role="img" aria-label="bridge.ai — Claude Code plugins">
+  <title>bridge.ai — Claude Code plugins</title>
+  <defs>
+    <radialGradient id="glowCyan" cx="0.8" cy="-0.1" r="0.78">
+      <stop offset="0" stop-color="#8be9fd" stop-opacity="0.09"/>
+      <stop offset="0.6" stop-color="#8be9fd" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowPurple" cx="0.02" cy="1.04" r="0.7">
+      <stop offset="0" stop-color="#bd93f9" stop-opacity="0.09"/>
+      <stop offset="0.55" stop-color="#bd93f9" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowSea" cx="0.5" cy="0.46" r="0.95">
+      <stop offset="0" stop-color="#282a36" stop-opacity="0.6"/>
+      <stop offset="0.72" stop-color="#282a36" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2"/>
+    </filter>
+    <filter id="aiGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="9"/>
+    </filter>
+    <clipPath id="plate"><rect width="640" height="200" rx="10"/></clipPath>
+
+    <!-- the command bridge: four Claude session windows in a 2x2 grid, each
+         carrying one plugin interjection in a category color. Borrowed verbatim
+         from the site's #mark symbol, with its CSS custom properties resolved. -->
+    <symbol id="mark" viewBox="0 0 40 40">
+      <g fill="#21222c" stroke="#44475a" stroke-width="0.8">
+        <rect x="3"  y="3"  width="16" height="16" rx="2.6"/>
+        <rect x="21" y="3"  width="16" height="16" rx="2.6"/>
+        <rect x="3"  y="21" width="16" height="16" rx="2.6"/>
+        <rect x="21" y="21" width="16" height="16" rx="2.6"/>
+      </g>
+      <g fill="#8e99bd" opacity="0.5">
+        <rect x="5.3"  y="9.5"  width="9.6" height="1.5" rx="0.75"/>
+        <rect x="5.3"  y="12.5" width="7.4" height="1.5" rx="0.75"/>
+        <rect x="5.3"  y="15.5" width="5.2" height="1.5" rx="0.75"/>
+        <rect x="23.3" y="6.5"  width="7.8" height="1.5" rx="0.75"/>
+        <rect x="23.3" y="12.5" width="9.2" height="1.5" rx="0.75"/>
+        <rect x="23.3" y="15.5" width="4.6" height="1.5" rx="0.75"/>
+        <rect x="5.3"  y="24.5" width="8.4" height="1.5" rx="0.75"/>
+        <rect x="5.3"  y="27.5" width="5.6" height="1.5" rx="0.75"/>
+        <rect x="5.3"  y="33.5" width="9.0" height="1.5" rx="0.75"/>
+        <rect x="23.3" y="24.5" width="6.8" height="1.5" rx="0.75"/>
+        <rect x="23.3" y="27.5" width="8.8" height="1.5" rx="0.75"/>
+        <rect x="23.3" y="30.5" width="5.8" height="1.5" rx="0.75"/>
+      </g>
+      <rect x="5.3"  y="6.5"  width="6.4" height="1.5" rx="0.75" fill="#ff5555"/>
+      <rect x="23.3" y="9.5"  width="6.4" height="1.5" rx="0.75" fill="#bd93f9"/>
+      <rect x="5.3"  y="30.5" width="6.4" height="1.5" rx="0.75" fill="#8be9fd"/>
+      <rect x="23.3" y="33.5" width="6.4" height="1.5" rx="0.75" fill="#50fa7b"/>
+    </symbol>
+  </defs>
+
+  <g clip-path="url(#plate)">
+    <rect width="640" height="200" fill="#191a21"/>
+    <rect width="640" height="200" fill="url(#glowSea)"/>
+    <rect width="640" height="200" fill="url(#glowCyan)"/>
+    <rect width="640" height="200" fill="url(#glowPurple)"/>
+
+    <!-- the mark as atmosphere, bleeding off the top-right behind the title -->
+    <use href="#mark" x="418" y="-36" width="266" height="266" opacity="0.18"/>
+
+    <rect width="640" height="200" fill="#ffffff" filter="url(#grain)" opacity="0.045"/>
+
+    <text x="44" y="58" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
+          font-size="17" letter-spacing="5.4" fill="#8be9fd">CLAUDE CODE PLUGINS</text>
+
+    <g font-family="Fraunces,Georgia,'Times New Roman',serif" font-size="92" letter-spacing="-2.8">
+      <text x="44" y="146" fill="#8be9fd" fill-opacity="0.35" filter="url(#aiGlow)"
+            font-weight="700">bridge<tspan font-style="italic" font-weight="400">.ai</tspan></text>
+      <text x="44" y="146" fill="#f8f8f2" font-weight="700"
+        >bridge<tspan id="ai" font-style="italic" font-weight="400" fill="#8be9fd">.ai</tspan></text>
+    </g>
+
+    <rect width="640" height="200" rx="10" fill="none" stroke="#8be9fd" stroke-opacity="0.14" stroke-width="2"/>
+  </g>
+</svg>
