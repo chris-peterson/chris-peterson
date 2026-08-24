@@ -363,19 +363,32 @@ def probe_repo(repo, wanted, max_commits):
         "issues": [],
         "branches": [],
         "branches_truncated": False,
-        "error": None,
+        "errors": {},
     }
-    try:
-        if "orphan-branches" in wanted:
-            result["branches"], result["branches_truncated"] = remote_branches(
-                result["owner"], result["name"])
-        if wanted & {"prs", "orphan-branches"}:
-            result["pulls"] = open_pulls(full_name)
-        if "issues" in wanted:
-            result["issues"] = open_issues(full_name)
-        # An empty repo has no baseline and no commits; it drops out of the
-        # unreleased section with the rest of the never-released projects.
-        if "unreleased" in wanted and branch:
+
+    # Each probe fails on its own. A repo with pull requests turned off 404s on
+    # /pulls while its issues and tags answer fine, and one shared error field
+    # would both abandon those and file the failure under whichever section read
+    # it first.
+    def attempt(area, call):
+        try:
+            return call()
+        except GhError as err:
+            result["errors"][area] = str(err)
+            return None
+
+    if "orphan-branches" in wanted:
+        got = attempt("branches", lambda: remote_branches(result["owner"], result["name"]))
+        if got:
+            result["branches"], result["branches_truncated"] = got
+    if wanted & {"prs", "orphan-branches"}:
+        result["pulls"] = attempt("pulls", lambda: open_pulls(full_name)) or []
+    if "issues" in wanted:
+        result["issues"] = attempt("issues", lambda: open_issues(full_name)) or []
+    # An empty repo has no baseline and no commits; it drops out of the
+    # unreleased section with the rest of the never-released projects.
+    if "unreleased" in wanted and branch:
+        def probe_unreleased():
             marker = latest_release(full_name) or latest_tag(full_name)
             result["release"] = marker
             if marker:
@@ -383,8 +396,7 @@ def probe_repo(repo, wanted, max_commits):
                 result.update(diff)
                 result["commits"] = list(reversed(diff["commits"]))[:max_commits]
                 result["truncated"] = diff["truncated"] or len(diff["commits"]) > max_commits
-    except GhError as err:
-        result["error"] = str(err)
+        attempt("unreleased", probe_unreleased)
     return result
 
 
@@ -776,7 +788,12 @@ def section_orphan_branches(results, clone_by_repo, stale_days, fix, assume_yes)
     cutoff = datetime.now(timezone.utc) - timedelta(days=stale_days)
     found = False
     for r in sorted(results, key=lambda r: r["repo"].lower()):
-        if r["error"]:
+        failed = {a: m for a, m in r["errors"].items() if a in ("branches", "pulls")}
+        if failed:
+            found = True
+            print()
+            for area, message in sorted(failed.items()):
+                print(paint(f"  {r['repo']}: {area}: {message}", "31"))
             continue
         open_heads = {p["head"] for p in r["pulls"]}
         orphans = []
@@ -825,9 +842,12 @@ def section_unreleased(results, max_commits, all_details):
             "longest-waiting project first; commits newest first\n"
             "counts exclude the version-bump commit of the current release "
             "(--include-release-commits to count it)")
-    released = [r for r in results if r["release"] or r["error"]]
-    ordered = sorted(released, key=lambda r: (r["error"] is not None, r["oldest"] or "~"))
-    detailed = [r for r in ordered if all_details or r["ahead"] or r["error"]]
+    def failure(r):
+        return r["errors"].get("unreleased")
+
+    released = [r for r in results if r["release"] or failure(r)]
+    ordered = sorted(released, key=lambda r: (failure(r) is not None, r["oldest"] or "~"))
+    detailed = [r for r in ordered if all_details or r["ahead"] or failure(r)]
     if not detailed:
         print()
         print("  every released project is up to date")
@@ -835,8 +855,8 @@ def section_unreleased(results, max_commits, all_details):
     for r in detailed:
         rel = r["release"]
         print()
-        if r["error"]:
-            print(paint(f"  {r['repo']}: {r['error']}", "1"))
+        if failure(r):
+            print(paint(f"  {r['repo']}: {failure(r)}", "31"))
             continue
         qualifier = ", tag only" if rel["kind"] == "tag" else (
             ", prerelease" if rel["prerelease"] else "")
@@ -859,13 +879,17 @@ def section_unreleased(results, max_commits, all_details):
 
 def section_prs(results):
     heading("OPEN PULL REQUESTS", "oldest first")
+    broken = [r for r in results if "pulls" in r["errors"]]
     rows = [(r, p) for r in results for p in r["pulls"]]
-    if not rows:
+    if not rows and not broken:
         print()
         print("  none")
         return
     rows.sort(key=lambda pair: pair[1]["created"] or "")
     print()
+    for r in sorted(broken, key=lambda r: r["repo"].lower()):
+        print(paint(f"  {r['repo']}: could not list pull requests: "
+                    f"{r['errors']['pulls']}", "31"))
     for r, p in rows:
         days = age_days(p["created"])
         flags = " [draft]" if p["draft"] else ""
@@ -877,11 +901,17 @@ def section_prs(results):
 
 def section_issues(results):
     heading("OPEN ISSUES", "grouped by milestone, soonest due date first")
+    broken = [r for r in results if "issues" in r["errors"]]
     rows = [(r, i) for r in results for i in r["issues"]]
-    if not rows:
+    if not rows and not broken:
         print()
         print("  none")
         return
+    if broken:
+        print()
+        for r in sorted(broken, key=lambda r: r["repo"].lower()):
+            print(paint(f"  {r['repo']}: could not list issues: "
+                        f"{r['errors']['issues']}", "31"))
 
     groups = {}
     for r, issue in rows:

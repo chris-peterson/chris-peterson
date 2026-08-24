@@ -74,3 +74,8 @@ A section is a `section_*` function that takes already-gathered state and
 prints. Add its name to `SECTIONS`, gather whatever remote data it needs inside
 `probe_repo` behind a `wanted` check so unselected sections cost no API calls,
 and call it from `main` in report order.
+
+Wrap each probe in `attempt("<area>", …)` and have the section print
+`r["errors"]["<area>"]` itself. A repo can answer some endpoints and 404 on
+others (pull requests turned off is the common case), so the failure has to
+reach the section that asked for it and leave the rest of the report alone.
