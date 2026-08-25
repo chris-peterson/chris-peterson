@@ -8,6 +8,7 @@
 | --- | --- |
 | `README.md` | Rendered on the GitHub profile page. Points at the docs site. |
 | `repo-status.py` | A cross-repo dashboard and reconciler for every project under the account |
+| `repo-viz.py` | A one-page chart of where attention went across those projects, week by week |
 
 ## repo-status.py
 
@@ -79,3 +80,74 @@ Wrap each probe in `attempt("<area>", …)` and have the section print
 `r["errors"]["<area>"]` itself. A repo can answer some endpoints and 404 on
 others (pull requests turned off is the common case), so the failure has to
 reach the section that asked for it and leave the rest of the report alone.
+
+## repo-viz.py
+
+The same account read as attention rather than as a worklist: what you have been
+pouring your weeks into, and what has gone quiet. One script, standard library
+only, driven through the `gh` CLI. It writes a self-contained HTML page — no
+CDN, no build step, no network at view time.
+
+```bash
+./repo-viz.py                       # write repo-viz.html and open it
+./repo-viz.py --months 24           # widen the window
+./repo-viz.py --owner some-user     # someone else's public projects
+./repo-viz.py --out /tmp/x.html --no-open
+./repo-viz.py --json                # the gathered data, for another tool
+```
+
+### Only the owner's own commits count
+
+Every history query is filtered by the owner's user node id. A fork tracking
+upstream lands hundreds of commits on its default branch that were never
+anyone's attention — `chris-peterson/PowerShell` carries 430 in a year, none of
+them his — and unfiltered they bury the work that was. The unfiltered count is
+kept per repo as `everyone` so a tooltip can say how much of the branch is
+someone else's.
+
+### What it reads
+
+One GraphQL query per page of 50 repos carries everything the charts plot. A
+repo whose window holds more than one page of commits gets its history
+paginated in full, so the weekly buckets are exact rather than capped at the
+first hundred. Each commit is stored as minutes since the window opened, which
+keeps the payload small and lets the page place commits in the *viewer's*
+timezone rather than a baked-in one.
+
+The window is whole weeks, starting on a Monday at midnight UTC, so a week
+index is plain division and every bucket is the same width.
+
+### What it draws
+
+Five views of one slice, scoped by a single filter row (window length, and
+forks, archived and private repos each toggle):
+
+- **focus** — weekly commits as a stacked area, one band per project. How much
+  energy, and where it went.
+- **map** — every project against every week. Rows sort by the commit-weighted
+  mean week, so a project sits where its work actually falls rather than where
+  a single trailing commit does; the result is a diagonal, and reading down it
+  is reading the order attention moved in.
+- **rhythm** — a weekday × hour punch card in the viewer's local time.
+- **treemap** — what the work amounts to: area is size, fill is commits in the
+  window, grouped by primary language.
+- **table** — every number the charts show, sortable.
+
+### The encoding rules it holds to
+
+Band colour is assigned once from the whole window, not per slice, so changing
+a filter never repaints the projects that survive it. Seven projects hold
+categorical slots and the rest fold into one receding grey — the eighth slot is
+where the palette's adjacent-pair separation starts to fail, and a generated
+hue would fail it outright.
+
+Heat is an ordinal blue ramp and never carries identity: a treemap and a
+heatmap both put arbitrary neighbours side by side, which is the case a
+categorical palette cannot survive past three hues. The dark ramps are their
+own steps against the dark surface rather than an inversion, and tile ink flips
+with the step so text on a fill always clears contrast.
+
+A label that will not fit is wrapped on its `-` and `.` boundaries and dropped
+if it still will not fit; nothing is ever clipped. Tiles whose area metric is
+zero can't be drawn, so the treemap caption counts them and the table keeps
+them reachable.
