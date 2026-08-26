@@ -9,6 +9,7 @@
 | `README.md` | Rendered on the GitHub profile page. Points at the docs site. |
 | `repo-status.py` | A cross-repo dashboard and reconciler for every project under the account |
 | `repo-viz.py` | A one-page chart of where attention went across those projects, week by week |
+| `.claude/commands/` | `/repo-status` and `/repo-viz`, each a thin wrapper mapping free-form arguments onto the script's flags |
 
 ## repo-status.py
 
