@@ -22,8 +22,8 @@
 
 <table>
   <tr>
-    <td width="34%"><a href="https://chris-peterson.github.io/ClaudeWatch/#/"><img alt="ClaudeWatch" src="https://img.shields.io/badge/%20-ClaudeWatch-282A36?style=flat-square&labelColor=FF5555"></a></td>
-    <td width="66%">Screens dangerous shell commands before they run</td>
+    <td width="196"><a href="https://chris-peterson.github.io/ClaudeWatch/#/"><img alt="ClaudeWatch" src="https://img.shields.io/badge/%20-ClaudeWatch-282A36?style=flat-square&labelColor=FF5555"></a></td>
+    <td width="480">Screens dangerous shell commands before they run</td>
   </tr>
   <tr>
     <td><a href="https://chris-peterson.github.io/shipshape/#/"><img alt="shipshape" src="https://img.shields.io/badge/%20-shipshape-282A36?style=flat-square&labelColor=FF5555"></a></td>
@@ -55,13 +55,13 @@
   </tr>
 </table>
 
-## Starred Projects
+## Featured Projects
 
 <table>
   <tr>
-    <td width="24%"><a href="https://chris-peterson.github.io/pwsh-gitlab/#/"><img alt="pwsh-gitlab" src="https://img.shields.io/badge/pwsh--gitlab-343746?style=flat-square"></a></td>
-    <td width="10%"><a href="https://github.com/chris-peterson/pwsh-gitlab"><img alt="stars" src="https://img.shields.io/github/stars/chris-peterson/pwsh-gitlab?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341"></a></td>
-    <td width="66%">GitLab from PowerShell</td>
+    <td width="128"><a href="https://chris-peterson.github.io/pwsh-gitlab/#/"><img alt="pwsh-gitlab" src="https://img.shields.io/badge/pwsh--gitlab-343746?style=flat-square"></a></td>
+    <td width="68"><a href="https://github.com/chris-peterson/pwsh-gitlab"><img alt="stars" src="https://img.shields.io/github/stars/chris-peterson/pwsh-gitlab?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341"></a></td>
+    <td width="480">GitLab from PowerShell</td>
   </tr>
   <tr>
     <td><a href="https://chris-peterson.github.io/kekiri/#/"><img alt="kekiri" src="https://img.shields.io/badge/kekiri-343746?style=flat-square"></a></td>
@@ -89,6 +89,11 @@
     <td>PowerShell objects to Markdown tables</td>
   </tr>
   <tr>
+    <td><a href="https://chris-peterson.github.io/pwsh-artifactory/#/"><img alt="pwsh-artifactory" src="https://img.shields.io/badge/pwsh--artifactory-343746?style=flat-square"></a></td>
+    <td><a href="https://github.com/chris-peterson/pwsh-artifactory"><img alt="stars" src="https://img.shields.io/github/stars/chris-peterson/pwsh-artifactory?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341"></a></td>
+    <td>Artifactory from PowerShell</td>
+  </tr>
+  <tr>
     <td><a href="https://chris-peterson.github.io/rmq-cli/#/"><img alt="rmq-cli" src="https://img.shields.io/badge/rmq--cli-343746?style=flat-square"></a></td>
     <td><a href="https://github.com/chris-peterson/rmq-cli"><img alt="stars" src="https://img.shields.io/github/stars/chris-peterson/rmq-cli?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341"></a></td>
     <td>RabbitMQ administration in a container</td>
@@ -104,8 +109,8 @@
 
 <table>
   <tr>
-    <td width="34%"><a href="https://chris-peterson.github.io/pwsh-forge/#/"><img alt="pwsh-forge" src="https://img.shields.io/badge/pwsh--forge-343746?style=flat-square"></a></td>
-    <td width="66%">One CLI shape over both GitHub and GitLab</td>
+    <td width="196"><a href="https://chris-peterson.github.io/pwsh-forge/#/"><img alt="pwsh-forge" src="https://img.shields.io/badge/pwsh--forge-343746?style=flat-square"></a></td>
+    <td width="480">One CLI shape over both GitHub and GitLab</td>
   </tr>
   <tr>
     <td><a href="https://chris-peterson.github.io/pwsh-github/#/"><img alt="pwsh-github" src="https://img.shields.io/badge/pwsh--github-343746?style=flat-square"></a></td>
@@ -119,44 +124,28 @@
     <td><a href="https://chris-peterson.github.io/publish-powershell/#/"><img alt="publish-powershell" src="https://img.shields.io/badge/publish--powershell-343746?style=flat-square"></a></td>
     <td>A GitHub Action that publishes modules to the PowerShell Gallery</td>
   </tr>
-</table>
-
-### Labs
-
-<table>
   <tr>
-    <td width="24%"><a href="https://chris-peterson.github.io/moor/#/"><img alt="moor" src="https://img.shields.io/badge/moor-343746?style=flat-square"></a></td>
-    <td width="10%"><a href="https://github.com/chris-peterson/moor"><img alt="stars" src="https://img.shields.io/github/stars/chris-peterson/moor?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341"></a></td>
-    <td width="66%">Keyboard-driven diff viewer for reviewing AI-generated code</td>
+    <td><a href="https://chris-peterson.github.io/moor/#/"><img alt="moor" src="https://img.shields.io/badge/moor-343746?style=flat-square"></a></td>
+    <td>Keyboard-driven diff viewer for reviewing AI-generated code</td>
   </tr>
   <tr>
     <td><a href="https://chris-peterson.github.io/logbook/#/"><img alt="logbook" src="https://img.shields.io/badge/logbook-343746?style=flat-square"></a></td>
-    <td><a href="https://github.com/chris-peterson/logbook"><img alt="stars" src="https://img.shields.io/github/stars/chris-peterson/logbook?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341"></a></td>
     <td>Coding sessions turned into retros, committed to a team repo</td>
   </tr>
   <tr>
-    <td><a href="https://chris-peterson.github.io/pwsh-artifactory/#/"><img alt="pwsh-artifactory" src="https://img.shields.io/badge/pwsh--artifactory-343746?style=flat-square"></a></td>
-    <td><a href="https://github.com/chris-peterson/pwsh-artifactory"><img alt="stars" src="https://img.shields.io/github/stars/chris-peterson/pwsh-artifactory?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341"></a></td>
-    <td>Artifactory from PowerShell</td>
-  </tr>
-  <tr>
     <td><a href="https://chris-peterson.github.io/fairlead/#/"><img alt="fairlead" src="https://img.shields.io/badge/fairlead-343746?style=flat-square"></a></td>
-    <td></td>
     <td>Plugins react to each other's facts without naming each other</td>
   </tr>
   <tr>
     <td><a href="https://github.com/chris-peterson/pinpoint"><img alt="pinpoint" src="https://img.shields.io/badge/pinpoint-343746?style=flat-square"></a></td>
-    <td></td>
     <td>Tag your files and let the directory tree follow</td>
   </tr>
   <tr>
     <td><a href="https://chris-peterson.github.io/pwsh-taglib/#/"><img alt="pwsh-taglib" src="https://img.shields.io/badge/pwsh--taglib-343746?style=flat-square"></a></td>
-    <td></td>
     <td>Audio metadata from PowerShell, through TagLib#</td>
   </tr>
   <tr>
     <td><a href="https://chris-peterson.github.io/pwsh-yelp/#/"><img alt="pwsh-yelp" src="https://img.shields.io/badge/pwsh--yelp-343746?style=flat-square"></a></td>
-    <td></td>
     <td>Yelp from PowerShell</td>
   </tr>
 </table>
