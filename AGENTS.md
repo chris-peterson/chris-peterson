@@ -9,13 +9,15 @@
 | `README.md` | Rendered on the GitHub profile page. Points at the docs site. |
 | `repo-status.py` | A cross-repo dashboard and reconciler for every project under the account |
 | `repo-viz.py` | A one-page chart of where attention went across those projects, week by week |
+| `ignore.yml` | The repos a scan skips, read by both scripts |
+| `requirements.txt` | PyYAML, the only dependency either script has |
 | `.claude/commands/` | `/repo-status` and `/repo-viz`, each a thin wrapper mapping free-form arguments onto the script's flags |
 
 ## repo-status.py
 
-One script, standard library only, driven entirely through the `gh` CLI and
-`git`. Run it from anywhere; it defaults to the authenticated user and a clone
-tree at `~/src/github/<owner>`.
+Driven entirely through the `gh` CLI and `git`, with PyYAML the only import
+outside the standard library. Run it from anywhere; it defaults to the
+authenticated user and a clone tree at `~/src/github/<owner>`.
 
 ```bash
 ./repo-status.py                          # all seven sections, read-only
@@ -82,12 +84,42 @@ Wrap each probe in `attempt("<area>", …)` and have the section print
 others (pull requests turned off is the common case), so the failure has to
 reach the section that asked for it and leave the rest of the report alone.
 
+## ignore.yml
+
+`ignore.yml` names what a scan skips, so a repo you have stopped caring about
+stops costing API calls on every run. Both scripts read it from their own
+directory rather than the working directory, and `--no-ignore` scans everything
+anyway.
+
+```yaml
+archived: true      # skip archived repos
+repos:              # skipped by name, whatever their state
+  - home-tech
+```
+
+Each script loads it with `yaml.safe_load` and then **rejects anything the two
+keys don't cover**, down to an unrecognized key: a line dropped in silence
+would widen a scan without saying so, which is the one failure an ignore list
+cannot have. Both scripts carry their own copy of that loader, so a change to
+one belongs in the other too.
+
+Where the two disagree, the more specific instruction wins:
+`repo-status.py --repo home-tech` probes an ignored repo because you named it,
+and `--include-archived` outranks `archived: true`.
+
+The skip has to happen before the expensive work, not after. In `repo-viz.py`
+that means filtering inside `gather` before `shape`, which paginates a repo's
+whole commit history when one page won't hold it. In `repo-status.py` it means
+dropping an ignored repo's clone alongside its remote record, so `reconcile`
+doesn't spend an API call classifying a clone whose repo it just filtered out.
+Each script prints what it skipped.
+
 ## repo-viz.py
 
 The same account read as attention rather than as a worklist: what you have been
-pouring your weeks into, and what has gone quiet. One script, standard library
-only, driven through the `gh` CLI. It writes a self-contained HTML page — no
-CDN, no build step, no network at view time.
+pouring your weeks into, and what has gone quiet. Driven through the `gh` CLI,
+with PyYAML the only import outside the standard library. It writes a
+self-contained HTML page — no CDN, no build step, no network at view time.
 
 ```bash
 ./repo-viz.py                       # write repo-viz.html and open it
@@ -121,7 +153,9 @@ index is plain division and every bucket is the same width.
 ### What it draws
 
 Five views of one slice, scoped by a single filter row (window length, and
-forks, archived and private repos each toggle):
+forks and private repos each toggle). Archived repos are excluded by
+`ignore.yml` rather than by a toggle, so `--no-ignore` is what brings them
+back, flagged `archived` on the tile and in the table:
 
 - **focus** — weekly commits as a stacked area, one band per project. How much
   energy, and where it went.

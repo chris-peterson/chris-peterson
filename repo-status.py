@@ -33,8 +33,72 @@ import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 
+import yaml
+
 SECTIONS = ["reconcile", "freshness", "local-branches", "orphan-branches",
             "unreleased", "prs", "issues"]
+
+
+IGNORE_FILE = "ignore.yml"
+IGNORE_KEYS = {"archived", "repos"}
+
+
+class IgnoreError(RuntimeError):
+    pass
+
+
+class Ignore:
+    def __init__(self, archived=False, names=()):
+        self.archived = archived
+        self.names = {n.lower() for n in names}
+
+    def skips(self, name, archived=False):
+        return (self.archived and archived) or (name or "").lower() in self.names
+
+    def reason(self, name, archived=False):
+        if (name or "").lower() in self.names:
+            return IGNORE_FILE
+        return "archived" if self.archived and archived else None
+
+    def __bool__(self):
+        return bool(self.archived or self.names)
+
+    def describe(self):
+        parts = []
+        if self.archived:
+            parts.append("archived")
+        if self.names:
+            parts.append(", ".join(sorted(self.names)))
+        return "; ".join(parts) or "nothing"
+
+
+def load_ignore(enabled=True):
+    """Read the ignore list, from the script's directory rather than the caller's."""
+    if not enabled:
+        return Ignore()
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), IGNORE_FILE)
+    if not os.path.exists(path):
+        return Ignore()
+    with open(path, encoding="utf-8") as handle:
+        try:
+            parsed = yaml.safe_load(handle) or {}
+        except yaml.YAMLError as err:
+            raise IgnoreError(f"{IGNORE_FILE}: {err}") from err
+    if not isinstance(parsed, dict):
+        raise IgnoreError(f"{IGNORE_FILE}: expected `key: value` entries")
+    # An unrecognized key would widen a scan in silence, which is the one
+    # failure mode an ignore list cannot have.
+    unknown = set(parsed) - IGNORE_KEYS
+    if unknown:
+        raise IgnoreError(f"{IGNORE_FILE}: unknown key {', '.join(sorted(unknown))!r}, "
+                          f"expected one of {', '.join(sorted(IGNORE_KEYS))}")
+    archived = parsed.get("archived", False)
+    if not isinstance(archived, bool):
+        raise IgnoreError(f"{IGNORE_FILE}: `archived` takes true or false")
+    repos = parsed.get("repos") or []
+    if not isinstance(repos, list):
+        raise IgnoreError(f"{IGNORE_FILE}: `repos` takes a list of `- name` entries")
+    return Ignore(archived=archived, names=repos)
 
 
 class GhError(RuntimeError):
@@ -960,6 +1024,8 @@ def main():
                         help="a remote branch with no open PR is orphaned after this "
                              "many days without a commit (default: 1)")
     parser.add_argument("--include-forks", action="store_true")
+    parser.add_argument("--no-ignore", action="store_true",
+                        help="scan every repo, disregarding {}".format(IGNORE_FILE))
     parser.add_argument("--include-archived", action="store_true")
     parser.add_argument("--include-release-commits", action="store_true",
                         help="count the current release's own version-bump commit as pending")
@@ -988,14 +1054,30 @@ def main():
     root = os.path.abspath(os.path.expanduser(
         args.root or os.path.join("~", "src", "github", owner)))
 
+    try:
+        ignore = load_ignore(enabled=not args.no_ignore)
+    except IgnoreError as err:
+        sys.exit(str(err))
+    if args.include_archived:
+        ignore.archived = False   # an explicit flag outranks the file
+
+    skipped = []
     if args.repos:
+        # Naming a repo outright asks for it, so the ignore list stays out of it.
         repos = [repo_record(name if "/" in name else f"{owner}/{name}") for name in args.repos]
     else:
         repos = list_repos(owner, args.include_forks, args.include_archived, args.repo_limit)
+        skipped = sorted(r["name"] for r in repos
+                         if ignore.skips(r["name"], r["isArchived"]))
+        repos = [r for r in repos if not ignore.skips(r["name"], r["isArchived"])]
     repos.sort(key=lambda r: r["name"].lower())
 
     if not repos:
         sys.exit(f"no repositories found for {owner}")
+
+    if skipped and not args.json:
+        print(f"{IGNORE_FILE}: skipping {len(skipped)} "
+              f"({', '.join(skipped)})")
 
     local_sections = wanted & {"reconcile", "freshness", "local-branches", "orphan-branches"}
     clones = []
@@ -1003,6 +1085,9 @@ def main():
         if not os.path.isdir(root):
             sys.exit(f"clone tree not found: {root} (pass --root)")
         clones = find_clones(root, args.depth)
+        # Drop an ignored repo's clone here, before reconcile spends an API call
+        # classifying it as a clone with no matching repo.
+        clones = [c for c in clones if not ignore.skips(c["name"])]
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
         results = list(pool.map(lambda r: probe_repo(r, wanted, args.max_commits), repos))

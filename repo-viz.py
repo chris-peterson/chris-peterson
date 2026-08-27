@@ -31,8 +31,72 @@ import sys
 import webbrowser
 from datetime import datetime, timedelta, timezone
 
+import yaml
+
 PAGE = 50
 WEEK_MINUTES = 7 * 24 * 60
+
+
+IGNORE_FILE = "ignore.yml"
+IGNORE_KEYS = {"archived", "repos"}
+
+
+class IgnoreError(RuntimeError):
+    pass
+
+
+class Ignore:
+    def __init__(self, archived=False, names=()):
+        self.archived = archived
+        self.names = {n.lower() for n in names}
+
+    def skips(self, name, archived=False):
+        return (self.archived and archived) or (name or "").lower() in self.names
+
+    def reason(self, name, archived=False):
+        if (name or "").lower() in self.names:
+            return IGNORE_FILE
+        return "archived" if self.archived and archived else None
+
+    def __bool__(self):
+        return bool(self.archived or self.names)
+
+    def describe(self):
+        parts = []
+        if self.archived:
+            parts.append("archived")
+        if self.names:
+            parts.append(", ".join(sorted(self.names)))
+        return "; ".join(parts) or "nothing"
+
+
+def load_ignore(enabled=True):
+    """Read the ignore list, from the script's directory rather than the caller's."""
+    if not enabled:
+        return Ignore()
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), IGNORE_FILE)
+    if not os.path.exists(path):
+        return Ignore()
+    with open(path, encoding="utf-8") as handle:
+        try:
+            parsed = yaml.safe_load(handle) or {}
+        except yaml.YAMLError as err:
+            raise IgnoreError(f"{IGNORE_FILE}: {err}") from err
+    if not isinstance(parsed, dict):
+        raise IgnoreError(f"{IGNORE_FILE}: expected `key: value` entries")
+    # An unrecognized key would widen a scan in silence, which is the one
+    # failure mode an ignore list cannot have.
+    unknown = set(parsed) - IGNORE_KEYS
+    if unknown:
+        raise IgnoreError(f"{IGNORE_FILE}: unknown key {', '.join(sorted(unknown))!r}, "
+                          f"expected one of {', '.join(sorted(IGNORE_KEYS))}")
+    archived = parsed.get("archived", False)
+    if not isinstance(archived, bool):
+        raise IgnoreError(f"{IGNORE_FILE}: `archived` takes true or false")
+    repos = parsed.get("repos") or []
+    if not isinstance(repos, list):
+        raise IgnoreError(f"{IGNORE_FILE}: `repos` takes a list of `- name` entries")
+    return Ignore(archived=archived, names=repos)
 
 
 class GhError(RuntimeError):
@@ -140,9 +204,10 @@ def commit_dates(owner, name, author, history, since):
     return dates
 
 
-def gather(owner, author, start, weeks, progress=True):
+def gather(owner, author, start, weeks, progress=True, ignore=None):
     since = start.strftime("%Y-%m-%dT%H:%M:%SZ")
-    repos, cursor = [], None
+    ignore = ignore or Ignore()
+    repos, cursor, skipped = [], None, []
 
     while True:
         data = graphql(REPO_QUERY, owner=owner, since=since, author=author,
@@ -152,10 +217,19 @@ def gather(owner, author, start, weeks, progress=True):
             raise GhError(f"no such GitHub owner: {owner}")
         page = holder["repositories"]
         for node in page["nodes"]:
+            # Skipping before shape() is the point: shape() paginates the repo's
+            # whole commit history when one page won't hold it.
+            if ignore.skips(node["name"], node["isArchived"]):
+                skipped.append(node["name"])
+                continue
             repos.append(shape(owner, author, node, since, start, progress))
         if not page["pageInfo"]["hasNextPage"]:
             break
         cursor = page["pageInfo"]["endCursor"]
+
+    if skipped and progress:
+        print(f"  {IGNORE_FILE}: skipped {len(skipped)} "
+              f"({', '.join(sorted(skipped))})", file=sys.stderr)
 
     repos.sort(key=lambda r: r["commits"], reverse=True)
     return {
@@ -423,7 +497,6 @@ TEMPLATE = r"""<!doctype html>
     </label>
     <div class="checks">
       <label><input type="checkbox" id="forks"> Forks</label>
-      <label><input type="checkbox" id="archived"> Archived</label>
       <label><input type="checkbox" id="private" checked> Private</label>
     </div>
     <span class="spacer"></span>
@@ -507,7 +580,7 @@ const BANDS = DATA.repos.filter(r => r.commits > 0)
 
 const state = {
   weeks: WEEKS, area: 'bytes', group: 'language',
-  forks: false, archived: false, private: true,
+  forks: false, private: true,
   sort: 'commits', desc: true,
 };
 
@@ -585,7 +658,6 @@ function slice() {
   const from = firstWeek();
   return DATA.repos
     .filter(r => (state.forks || !r.fork) &&
-                 (state.archived || !r.archived) &&
                  (state.private || !r.private))
     .map(r => {
       const weekly = weeklyOf(r).slice(from);
@@ -1405,7 +1477,6 @@ bind('weeks', 'weeks', Number);
 bind('area', 'area');
 bind('group', 'group');
 bind('forks', 'forks');
-bind('archived', 'archived');
 bind('private', 'private');
 
 document.getElementById('theme').addEventListener('click', () => {
@@ -1447,14 +1518,22 @@ def main():
     parser.add_argument("--json", action="store_true",
                         help="write the gathered data as JSON instead of a page")
     parser.add_argument("--no-open", action="store_true", help="do not open the page")
+    parser.add_argument("--no-ignore", action="store_true",
+                        help=f"scan every repo, disregarding {IGNORE_FILE}")
     args = parser.parse_args()
+
+    try:
+        ignore = load_ignore(enabled=not args.no_ignore)
+    except IgnoreError as err:
+        print(str(err), file=sys.stderr)
+        return 1
 
     try:
         owner = args.owner or gh(["api", "user", "--jq", ".login"]).strip()
         author = node_id(owner)
         start, weeks = window(datetime.now(timezone.utc), args.months)
         print(f"reading {owner} from {start:%Y-%m-%d} ({weeks} weeks)...", file=sys.stderr)
-        payload = gather(owner, author, start, weeks)
+        payload = gather(owner, author, start, weeks, ignore=ignore)
     except GhError as err:
         print(f"gh: {err}", file=sys.stderr)
         return 1

@@ -20,26 +20,146 @@
   <a href="https://chris-peterson.github.io/claude-marketplace/#/"><img alt="bridge.ai" src="assets/bridge-ai.svg" width="440"></a>
 </p>
 
-| | |
-| --- | --- |
-| [![ClaudeWatch](https://img.shields.io/badge/%20-ClaudeWatch-282A36?style=flat-square&labelColor=FF5555)](https://chris-peterson.github.io/ClaudeWatch/#/) | Screens dangerous shell commands before they run |
-| [![shipshape](https://img.shields.io/badge/%20-shipshape-282A36?style=flat-square&labelColor=FF5555)](https://chris-peterson.github.io/shipshape/#/) | Keeps Claude Code and your installed plugins current |
-| [![beacon](https://img.shields.io/badge/%20-beacon-282A36?style=flat-square&labelColor=BD93F9)](https://chris-peterson.github.io/beacon/#/) | At-a-glance awareness across concurrent Claude Code sessions |
-| [![tack](https://img.shields.io/badge/%20-tack-282A36?style=flat-square&labelColor=BD93F9)](https://chris-peterson.github.io/tack/#/) | Remembers what you were working on between sessions |
-| [![anchor](https://img.shields.io/badge/%20-anchor-282A36?style=flat-square&labelColor=8BE9FD)](https://chris-peterson.github.io/anchor/#/) | Consistency across the code-change lifecycle: issue, review, release |
-| [![sextant](https://img.shields.io/badge/%20-sextant-282A36?style=flat-square&labelColor=50FA7B)](https://chris-peterson.github.io/sextant/#/) | Requirements in source control, synced with the code either direction |
-| [![cleat](https://img.shields.io/badge/%20-cleat-282A36?style=flat-square&labelColor=50FA7B)](https://chris-peterson.github.io/cleat/#/) | Project instructions written once, in the file every AI tool reads |
+<table>
+  <tr>
+    <td width="34%"><a href="https://chris-peterson.github.io/ClaudeWatch/#/"><img alt="ClaudeWatch" src="https://img.shields.io/badge/%20-ClaudeWatch-282A36?style=flat-square&labelColor=FF5555"></a></td>
+    <td width="66%">Screens dangerous shell commands before they run</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/shipshape/#/"><img alt="shipshape" src="https://img.shields.io/badge/%20-shipshape-282A36?style=flat-square&labelColor=FF5555"></a></td>
+    <td>Keeps Claude Code and your installed plugins current</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/beacon/#/"><img alt="beacon" src="https://img.shields.io/badge/%20-beacon-282A36?style=flat-square&labelColor=BD93F9"></a></td>
+    <td>At-a-glance awareness across concurrent Claude Code sessions</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/tack/#/"><img alt="tack" src="https://img.shields.io/badge/%20-tack-282A36?style=flat-square&labelColor=BD93F9"></a></td>
+    <td>Remembers what you were working on between sessions</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/anchor/#/"><img alt="anchor" src="https://img.shields.io/badge/%20-anchor-282A36?style=flat-square&labelColor=8BE9FD"></a></td>
+    <td>Consistency across issues, reviews, commits, and releases</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/sextant/#/"><img alt="sextant" src="https://img.shields.io/badge/%20-sextant-282A36?style=flat-square&labelColor=50FA7B"></a></td>
+    <td>Requirements in source control, synced with the code either direction</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/cleat/#/"><img alt="cleat" src="https://img.shields.io/badge/%20-cleat-282A36?style=flat-square&labelColor=50FA7B"></a></td>
+    <td>Project instructions written once, in the file every AI tool reads</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/shipyard/#/"><img alt="shipyard" src="https://img.shields.io/badge/%20-shipyard-282A36?style=flat-square&labelColor=6272A4"></a></td>
+    <td>Shared build tooling behind the bridge.ai plugins</td>
+  </tr>
+</table>
+
+## Starred Projects
+
+<table>
+  <tr>
+    <td width="24%"><a href="https://chris-peterson.github.io/pwsh-gitlab/#/"><img alt="pwsh-gitlab" src="https://img.shields.io/badge/pwsh--gitlab-343746?style=flat-square"></a></td>
+    <td width="10%"><a href="https://github.com/chris-peterson/pwsh-gitlab"><img alt="stars" src="https://img.shields.io/github/stars/chris-peterson/pwsh-gitlab?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341"></a></td>
+    <td width="66%">GitLab from PowerShell</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/kekiri/#/"><img alt="kekiri" src="https://img.shields.io/badge/kekiri-343746?style=flat-square"></a></td>
+    <td><a href="https://github.com/chris-peterson/kekiri"><img alt="stars" src="https://img.shields.io/github/stars/chris-peterson/kekiri?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341"></a></td>
+    <td>Low-ceremony BDD tests for .NET, written in Gherkin</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/spiffy/#/"><img alt="spiffy" src="https://img.shields.io/badge/spiffy-343746?style=flat-square"></a></td>
+    <td><a href="https://github.com/chris-peterson/spiffy"><img alt="stars" src="https://img.shields.io/github/stars/chris-peterson/spiffy?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341"></a></td>
+    <td>Structured logging for .NET, built for aggregation</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/assurance/#/"><img alt="assurance" src="https://img.shields.io/badge/assurance-343746?style=flat-square"></a></td>
+    <td><a href="https://github.com/chris-peterson/assurance"><img alt="stars" src="https://img.shields.io/github/stars/chris-peterson/assurance?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341"></a></td>
+    <td>Confidence when changing code</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/virgo/#/"><img alt="virgo" src="https://img.shields.io/badge/virgo-343746?style=flat-square"></a></td>
+    <td><a href="https://github.com/chris-peterson/virgo"><img alt="stars" src="https://img.shields.io/github/stars/chris-peterson/virgo?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341"></a></td>
+    <td>Versioning for build artifacts</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/pwsh-fmd/#/"><img alt="pwsh-fmd" src="https://img.shields.io/badge/pwsh--fmd-343746?style=flat-square"></a></td>
+    <td><a href="https://github.com/chris-peterson/pwsh-fmd"><img alt="stars" src="https://img.shields.io/github/stars/chris-peterson/pwsh-fmd?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341"></a></td>
+    <td>PowerShell objects to Markdown tables</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/rmq-cli/#/"><img alt="rmq-cli" src="https://img.shields.io/badge/rmq--cli-343746?style=flat-square"></a></td>
+    <td><a href="https://github.com/chris-peterson/rmq-cli"><img alt="stars" src="https://img.shields.io/github/stars/chris-peterson/rmq-cli?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341"></a></td>
+    <td>RabbitMQ administration in a container</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/gitconfig/#/"><img alt="gitconfig" src="https://img.shields.io/badge/gitconfig-343746?style=flat-square"></a></td>
+    <td><a href="https://github.com/chris-peterson/gitconfig"><img alt="stars" src="https://img.shields.io/github/stars/chris-peterson/gitconfig?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341"></a></td>
+    <td>My git config, kept as small as it will go</td>
+  </tr>
+</table>
 
 ## Other Projects
 
-| | | |
-| --- | --- | --- |
-| [![pwsh-gitlab](https://img.shields.io/badge/pwsh--gitlab-343746?style=flat-square)](https://chris-peterson.github.io/pwsh-gitlab/) | [![stars](https://img.shields.io/github/stars/chris-peterson/pwsh-gitlab?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341)](https://github.com/chris-peterson/pwsh-gitlab) | GitLab from PowerShell |
-| [![kekiri](https://img.shields.io/badge/kekiri-343746?style=flat-square)](https://chris-peterson.github.io/kekiri/) | [![stars](https://img.shields.io/github/stars/chris-peterson/kekiri?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341)](https://github.com/chris-peterson/kekiri) | Low-ceremony BDD tests for .NET, written in Gherkin |
-| [![spiffy](https://img.shields.io/badge/spiffy-343746?style=flat-square)](https://chris-peterson.github.io/spiffy/) | [![stars](https://img.shields.io/github/stars/chris-peterson/spiffy?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341)](https://github.com/chris-peterson/spiffy) | Structured logging for .NET, built for aggregation |
-| [![assurance](https://img.shields.io/badge/assurance-343746?style=flat-square)](https://chris-peterson.github.io/assurance/) | [![stars](https://img.shields.io/github/stars/chris-peterson/assurance?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341)](https://github.com/chris-peterson/assurance) | Confidence when changing code |
-| [![virgo](https://img.shields.io/badge/virgo-343746?style=flat-square)](https://chris-peterson.github.io/virgo/) | [![stars](https://img.shields.io/github/stars/chris-peterson/virgo?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341)](https://github.com/chris-peterson/virgo) | Versioning for build artifacts |
-| [![pwsh-fmd](https://img.shields.io/badge/pwsh--fmd-343746?style=flat-square)](https://chris-peterson.github.io/pwsh-fmd/) | [![stars](https://img.shields.io/github/stars/chris-peterson/pwsh-fmd?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341)](https://github.com/chris-peterson/pwsh-fmd) | PowerShell objects to Markdown tables |
+<table>
+  <tr>
+    <td width="34%"><a href="https://chris-peterson.github.io/pwsh-forge/#/"><img alt="pwsh-forge" src="https://img.shields.io/badge/pwsh--forge-343746?style=flat-square"></a></td>
+    <td width="66%">One CLI shape over both GitHub and GitLab</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/pwsh-github/#/"><img alt="pwsh-github" src="https://img.shields.io/badge/pwsh--github-343746?style=flat-square"></a></td>
+    <td>GitHub from PowerShell</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/futility/#/"><img alt="futility" src="https://img.shields.io/badge/futility-343746?style=flat-square"></a></td>
+    <td>File operations for PowerShell</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/publish-powershell/#/"><img alt="publish-powershell" src="https://img.shields.io/badge/publish--powershell-343746?style=flat-square"></a></td>
+    <td>A GitHub Action that publishes modules to the PowerShell Gallery</td>
+  </tr>
+</table>
+
+### Labs
+
+<table>
+  <tr>
+    <td width="24%"><a href="https://chris-peterson.github.io/moor/#/"><img alt="moor" src="https://img.shields.io/badge/moor-343746?style=flat-square"></a></td>
+    <td width="10%"><a href="https://github.com/chris-peterson/moor"><img alt="stars" src="https://img.shields.io/github/stars/chris-peterson/moor?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341"></a></td>
+    <td width="66%">Keyboard-driven diff viewer for reviewing AI-generated code</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/logbook/#/"><img alt="logbook" src="https://img.shields.io/badge/logbook-343746?style=flat-square"></a></td>
+    <td><a href="https://github.com/chris-peterson/logbook"><img alt="stars" src="https://img.shields.io/github/stars/chris-peterson/logbook?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341"></a></td>
+    <td>Coding sessions turned into retros, committed to a team repo</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/pwsh-artifactory/#/"><img alt="pwsh-artifactory" src="https://img.shields.io/badge/pwsh--artifactory-343746?style=flat-square"></a></td>
+    <td><a href="https://github.com/chris-peterson/pwsh-artifactory"><img alt="stars" src="https://img.shields.io/github/stars/chris-peterson/pwsh-artifactory?style=flat-square&label=%E2%98%85&labelColor=191A21&color=E3B341"></a></td>
+    <td>Artifactory from PowerShell</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/fairlead/#/"><img alt="fairlead" src="https://img.shields.io/badge/fairlead-343746?style=flat-square"></a></td>
+    <td></td>
+    <td>Plugins react to each other's facts without naming each other</td>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/chris-peterson/pinpoint"><img alt="pinpoint" src="https://img.shields.io/badge/pinpoint-343746?style=flat-square"></a></td>
+    <td></td>
+    <td>Tag your files and let the directory tree follow</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/pwsh-taglib/#/"><img alt="pwsh-taglib" src="https://img.shields.io/badge/pwsh--taglib-343746?style=flat-square"></a></td>
+    <td></td>
+    <td>Audio metadata from PowerShell, through TagLib#</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/pwsh-yelp/#/"><img alt="pwsh-yelp" src="https://img.shields.io/badge/pwsh--yelp-343746?style=flat-square"></a></td>
+    <td></td>
+    <td>Yelp from PowerShell</td>
+  </tr>
+</table>
 
 ## Upstream Contributions
 
