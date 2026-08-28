@@ -20,15 +20,43 @@ outside the standard library. Run it from anywhere; it defaults to the
 authenticated user and a clone tree at `~/src/github/<owner>`.
 
 ```bash
-./repo-status.py                          # all seven sections, read-only
-./repo-status.py --only unreleased        # one section
+./repo-status.py                          # all eight sections, read-only
+./repo-status.py --only uncommitted       # one section
 ./repo-status.py --skip issues --skip prs
 ./repo-status.py --fix                    # reconcile, prompting before each delete
 ```
 
 Sections print in a fixed order, each one independently selectable with
-`--only` / `--skip`: `reconcile`, `freshness`, `local-branches`,
-`orphan-branches`, `unreleased`, `prs`, `issues`.
+`--only` / `--skip`: `reconcile`, `uncommitted`, `local-branches`,
+`orphan-branches`, `prs`, `unreleased`, `issues`, `behind`.
+
+### The order they print in
+
+The middle six run in the order the work gets done: find what only your disk
+holds, delete the branches that have served their purpose, audit the open PRs,
+see what has piled up since the last release, then the issues. The two
+clone-tree housekeeping passes bracket them. `reconcile` leads because the rest
+of the run reads the tree it repairs — with `--fix` it moves and clones before
+anything else probes. `behind` trails because a clone trailing origin costs
+nothing until you go to work in it, and `--fix` fast-forwards the clean ones
+without being asked.
+
+### Uncommitted and unpushed
+
+`uncommitted` is the one section about work that would be lost if the disk
+were. It counts a dirty working tree, and for **every** local branch — not just
+the checked-out one — the commits no remote holds, in three flavours:
+
+| Flavour | How it is measured |
+| --- | --- |
+| ahead of a live upstream | the `ahead N` in `%(upstream:track)` |
+| upstream deleted | `rev-list --count <branch> --not --remotes` |
+| never had an upstream | the same count |
+
+That last measure is what makes the section trustworthy on branches git has
+nothing to compare against, and it is what `local-branches` consults before it
+offers a `branch -D`: a branch whose remote is gone but whose commits live
+nowhere else is held back from the batch and reported as held, with the count.
 
 ### The layout it enforces
 

@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """Report on the GitHub projects you own, and reconcile them with your local clones.
 
-Sections, in the order they print:
+Sections, in the order they print — the order the work gets done in, with the
+clone-tree housekeeping at either end:
 
   reconcile        the clone tree under --root vs the repos you own on GitHub,
                    each clone expected at <root>/<repo name>
-  freshness        each clone's fetch, ahead/behind and working-tree state
+  uncommitted      dirty working trees, and commits no remote holds
   local-branches   local branches already merged into the default branch
   orphan-branches  remote branches with no open PR that have gone stale
-  unreleased       commits on the default branch since the last release or tag
   prs              open pull requests
+  unreleased       commits on the default branch since the last release or tag
   issues           open issues, grouped by milestone
+  behind           clones trailing origin, and the fetches that failed
 
 Remote state comes from the GitHub API through `gh`, so it reflects the server
 rather than whatever the clones happen to hold. Local state comes from the
@@ -35,8 +37,8 @@ from datetime import datetime, timedelta, timezone
 
 import yaml
 
-SECTIONS = ["reconcile", "freshness", "local-branches", "orphan-branches",
-            "unreleased", "prs", "issues"]
+SECTIONS = ["reconcile", "uncommitted", "local-branches", "orphan-branches",
+            "prs", "unreleased", "issues", "behind"]
 
 
 IGNORE_FILE = "ignore.yml"
@@ -468,6 +470,26 @@ def probe_repo(repo, wanted, max_commits):
 # local probes
 # --------------------------------------------------------------------------- #
 
+AHEAD_COUNT = re.compile(r"ahead (\d+)")
+
+
+def unpushed_work(path, branch, upstream, track):
+    """Commits on `branch` that no remote holds, or None when it is published."""
+    if upstream and "[gone]" not in track:
+        match = AHEAD_COUNT.search(track)
+        if not match:
+            return None
+        return {"branch": branch, "count": int(match.group(1)),
+                "kind": "ahead", "upstream": upstream}
+    # With no upstream to compare against, the branch's own commits are the
+    # measure: what is reachable from it and from no remote-tracking ref.
+    count = git(path, "rev-list", "--count", branch, "--not", "--remotes", check=False)
+    if not count or not int(count):
+        return None
+    return {"branch": branch, "count": int(count),
+            "kind": "gone" if upstream else "untracked", "upstream": upstream or None}
+
+
 def probe_clone(clone, default_branch, fetch):
     info = dict(clone)
     info.update({
@@ -483,6 +505,7 @@ def probe_clone(clone, default_branch, fetch):
         "default_behind": 0,
         "merged_branches": [],
         "gone_branches": [],
+        "unpushed": [],
     })
     path = clone["path"]
 
@@ -525,13 +548,15 @@ def probe_clone(clone, default_branch, fetch):
             ahead, behind = counts.split()
             info["default_ahead"], info["default_behind"] = int(ahead), int(behind)
 
-    tracking = {}
-    for line in (git(path, "for-each-ref", "--format=%(refname:short)\t%(upstream:track)",
+    for line in (git(path, "for-each-ref",
+                     "--format=%(refname:short)\t%(upstream:short)\t%(upstream:track)",
                      "refs/heads/", check=False) or "").splitlines():
-        name, _, track = line.partition("\t")
-        tracking[name] = track
+        name, upstream, track = (line.split("\t") + ["", ""])[:3]
         if "[gone]" in track and name not in (default, info["branch"]):
             info["gone_branches"].append(name)
+        stranded = unpushed_work(path, name, upstream, track)
+        if stranded:
+            info["unpushed"].append(stranded)
 
     if have_default:
         for line in (git(path, "for-each-ref", "--merged", default_ref,
@@ -745,7 +770,7 @@ def section_reconcile(repos, clones, root, owner, fix, assume_yes, jobs):
 
     if foreign:
         print()
-        print(f"  clones of other owners ({len(foreign)}), reported for freshness only:")
+        print(f"  clones of other owners ({len(foreign)}), reported on local state only:")
         for clone in sorted(foreign, key=lambda c: c["rel"].lower()):
             print(f"    {clone['rel']}  ->  {clone['origin'] or 'no origin remote'}")
 
@@ -756,63 +781,39 @@ def section_reconcile(repos, clones, root, owner, fix, assume_yes, jobs):
     return clones
 
 
-def section_freshness(states, fix, all_details):
-    heading("CLONE FRESHNESS", "ahead/behind is the checked-out branch against its upstream")
+def section_uncommitted(states, all_details):
+    heading("UNCOMMITTED AND UNPUSHED WORK",
+            "work held by one clone and nothing else; dirtiest tree first")
     rows = []
-    for s in sorted(states, key=lambda s: s["rel"].lower()):
-        notes = []
-        if s["fetch_error"]:
-            notes.append(paint(f"fetch failed: {s['fetch_error']}", "31"))
-        if s["detached"]:
-            notes.append("detached HEAD")
-        elif not s["upstream"]:
-            notes.append("no upstream")
-        if s["dirty"]:
-            notes.append(f"{s['dirty']} uncommitted")
-        if s["ahead"]:
-            notes.append(f"{s['ahead']} unpushed")
-        if s["behind"]:
-            notes.append(f"{s['behind']} behind")
-        if s["default_behind"]:
-            notes.append(f"{s['default']} is {s['default_behind']} behind origin")
-        if s["default_ahead"]:
-            notes.append(f"{s['default']} has {s['default_ahead']} unpushed")
-        if not notes and not all_details:
-            continue
-        rows.append((s, notes or ["up to date"]))
+    for s in states:
+        pending = sum(u["count"] for u in s["unpushed"])
+        if s["dirty"] or pending or all_details:
+            rows.append((s, pending))
+    rows.sort(key=lambda pair: (-pair[0]["dirty"], -pair[1], pair[0]["rel"].lower()))
 
     if not rows:
         print()
-        print(f"  all {len(states)} clone(s) clean and up to date")
+        print(f"  every one of {len(states)} clone(s) is committed and pushed")
         return
 
-    width = max(len(s["rel"]) for s, _ in rows)
-    print()
-    for s, notes in rows:
-        branch = s["branch"] or "(detached)"
-        print(f"  {s['rel']:<{width}}  {branch:<24}  " + "; ".join(notes))
-        if not fix:
+    for s, pending in rows:
+        print()
+        print(paint(f"  {s['rel']}", "1"))
+        if not s["dirty"] and not pending:
+            print("    committed and pushed")
             continue
-        if s["behind"] and not s["ahead"] and not s["dirty"] and s["upstream"]:
-            proc = subprocess.run(["git", "-C", s["path"], "merge", "--ff-only", s["upstream"]],
-                                  capture_output=True, text=True)
-            if proc.returncode == 0:
-                print(f"      fast-forwarded {branch} to {s['upstream']}")
-                s["behind"] = 0
-            else:
-                print(paint(f"      fast-forward failed: {first_line(proc.stderr)}", "31"))
-        # The default branch isn't checked out here, so a merge can't reach it;
-        # a refspec fetch moves the ref and refuses anything but a fast-forward.
-        if s["default_behind"] and not s["default_ahead"]:
-            default = s["default"]
-            proc = subprocess.run(
-                ["git", "-C", s["path"], "fetch", "origin", f"{default}:{default}"],
-                capture_output=True, text=True)
-            if proc.returncode == 0:
-                print(f"      fast-forwarded {default} to origin/{default}")
-                s["default_behind"] = 0
-            else:
-                print(paint(f"      {default} update failed: {first_line(proc.stderr)}", "31"))
+        if s["dirty"]:
+            print(f"    {s['dirty']} uncommitted change(s) on "
+                  f"{s['branch'] or 'a detached HEAD'}")
+            print(f"      cd {s['path']}")
+        for u in sorted(s["unpushed"], key=lambda u: (-u["count"], u["branch"])):
+            where = {"ahead": f"not pushed to {u['upstream']}",
+                     "gone": f"on no remote ({u['upstream']} was deleted)",
+                     "untracked": "on no remote (no upstream)"}[u["kind"]]
+            print(f"    {u['branch']}: {u['count']} commit(s) {where}")
+            flag = [] if u["kind"] == "ahead" else ["-u"]
+            print("      " + " ".join(["git", "-C", s["path"], "push",
+                                       *flag, "origin", u["branch"]]))
 
 
 def section_local_branches(states, fix, assume_yes):
@@ -824,13 +825,23 @@ def section_local_branches(states, fix, assume_yes):
         if not merged and not gone:
             continue
         found = True
+        # A branch whose remote is gone can still hold the only copy of its
+        # commits, and `branch -D` would take them with it.
+        stranded = {u["branch"]: u["count"] for u in s["unpushed"]}
+        held = sorted(b for b in gone if b in stranded)
+        gone = [b for b in gone if b not in stranded]
         print()
         print(paint(f"  {s['rel']}  ({len(merged) + len(gone)})", "1"))
         if merged:
             print(f"    merged into {s['default']} ({len(merged)}): " + ", ".join(sorted(merged)))
         if gone:
             print(f"    upstream deleted ({len(gone)}): " + ", ".join(sorted(gone)))
+        for branch in held:
+            print(f"    holding back {branch}: upstream deleted, but it still "
+                  f"carries {stranded[branch]} commit(s) no remote has")
         branches = sorted(merged) + sorted(gone)
+        if not branches:
+            continue
         command = ["git", "-C", s["path"], "branch", "-D", *branches]
         if fix:
             if confirm(f"delete {len(branches)} local branch(es) in {s['rel']}?", assume_yes):
@@ -999,6 +1010,61 @@ def section_issues(results):
             print(link(label, issue["url"]))
 
 
+def section_behind(states, fix, all_details):
+    heading("CLONES BEHIND ORIGIN",
+            "the checked-out branch against its upstream, and the default branch "
+            "against origin\n--fix fast-forwards each one that is clean")
+    rows = []
+    for s in sorted(states, key=lambda s: s["rel"].lower()):
+        notes = []
+        if s["fetch_error"]:
+            notes.append(paint(f"fetch failed: {s['fetch_error']}", "31"))
+        if s["detached"]:
+            notes.append("detached HEAD")
+        elif not s["upstream"]:
+            notes.append("no upstream")
+        if s["behind"]:
+            notes.append(f"{s['behind']} behind")
+        if s["default_behind"]:
+            notes.append(f"{s['default']} is {s['default_behind']} behind origin")
+        if not notes and not all_details:
+            continue
+        rows.append((s, notes or ["up to date"]))
+
+    if not rows:
+        print()
+        print(f"  all {len(states)} clone(s) are level with origin")
+        return
+
+    width = max(len(s["rel"]) for s, _ in rows)
+    print()
+    for s, notes in rows:
+        branch = s["branch"] or "(detached)"
+        print(f"  {s['rel']:<{width}}  {branch:<24}  " + "; ".join(notes))
+        if not fix:
+            continue
+        if s["behind"] and not s["ahead"] and not s["dirty"] and s["upstream"]:
+            proc = subprocess.run(["git", "-C", s["path"], "merge", "--ff-only", s["upstream"]],
+                                  capture_output=True, text=True)
+            if proc.returncode == 0:
+                print(f"      fast-forwarded {branch} to {s['upstream']}")
+                s["behind"] = 0
+            else:
+                print(paint(f"      fast-forward failed: {first_line(proc.stderr)}", "31"))
+        # The default branch isn't checked out here, so a merge can't reach it;
+        # a refspec fetch moves the ref and refuses anything but a fast-forward.
+        if s["default_behind"] and not s["default_ahead"]:
+            default = s["default"]
+            proc = subprocess.run(
+                ["git", "-C", s["path"], "fetch", "origin", f"{default}:{default}"],
+                capture_output=True, text=True)
+            if proc.returncode == 0:
+                print(f"      fast-forwarded {default} to origin/{default}")
+                s["default_behind"] = 0
+            else:
+                print(paint(f"      {default} update failed: {first_line(proc.stderr)}", "31"))
+
+
 # --------------------------------------------------------------------------- #
 # entry point
 # --------------------------------------------------------------------------- #
@@ -1079,7 +1145,8 @@ def main():
         print(f"{IGNORE_FILE}: skipping {len(skipped)} "
               f"({', '.join(skipped)})")
 
-    local_sections = wanted & {"reconcile", "freshness", "local-branches", "orphan-branches"}
+    local_sections = wanted & {"reconcile", "uncommitted", "local-branches",
+                               "orphan-branches", "behind"}
     clones = []
     if local_sections:
         if not os.path.isdir(root):
@@ -1105,7 +1172,7 @@ def main():
         clones = section_reconcile(repos, clones, root, owner, args.fix, args.yes, args.jobs)
 
     states = []
-    if wanted & {"freshness", "local-branches", "orphan-branches"}:
+    if wanted & {"uncommitted", "local-branches", "orphan-branches", "behind"}:
         def probe(clone):
             key = f"{clone['owner']}/{clone['name']}".lower()
             return probe_clone(clone, default_by_repo.get(key), fetch=True)
@@ -1121,18 +1188,20 @@ def main():
         print()
         return
 
-    if "freshness" in wanted:
-        section_freshness(states, args.fix, args.all_details)
+    if "uncommitted" in wanted:
+        section_uncommitted(states, args.all_details)
     if "local-branches" in wanted:
         section_local_branches(states, args.fix, args.yes)
     if "orphan-branches" in wanted:
         section_orphan_branches(results, clone_by_repo, args.stale_days, args.fix, args.yes)
-    if "unreleased" in wanted:
-        section_unreleased(results, args.max_commits, args.all_details)
     if "prs" in wanted:
         section_prs(results)
+    if "unreleased" in wanted:
+        section_unreleased(results, args.max_commits, args.all_details)
     if "issues" in wanted:
         section_issues(results)
+    if "behind" in wanted:
+        section_behind(states, args.fix, args.all_details)
 
 
 if __name__ == "__main__":

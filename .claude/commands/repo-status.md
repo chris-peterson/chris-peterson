@@ -12,12 +12,12 @@ Run `./repo-status.py` from the repo root with the flags below, then report what
 
 | What was typed | Flag |
 | --- | --- |
-| a section name (`reconcile`, `freshness`, `local-branches`, `orphan-branches`, `unreleased`, `prs`, `issues`) | `--only <section>`, repeatable |
+| a section name (`reconcile`, `uncommitted`, `local-branches`, `orphan-branches`, `prs`, `unreleased`, `issues`, `behind`) | `--only <section>`, repeatable |
 | `no <section>`, `skip <section>` | `--skip <section>`, repeatable |
 | a bare repo name | `--repo <name>`, repeatable |
-| nothing | no flags: all seven sections, read-only |
+| nothing | no flags: all eight sections, read-only |
 
-A prefix that unambiguously names one section (`orphan`, `unreleased`, `prs`) resolves to it. One that matches several, like `branches`, is a question rather than a guess.
+A prefix that unambiguously names one section (`orphan`, `recon`, `prs`) resolves to it. One that matches several, like `branches` or `un`, is a question rather than a guess.
 
 ## What to report
 
