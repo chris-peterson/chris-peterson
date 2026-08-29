@@ -14,9 +14,9 @@ Run `./repo-viz.py` from the repo root with the flags below, then report the one
 | --- | --- |
 | a bare number, or `18 months`, `2 years` | `--months <n>` |
 | a GitHub account name | `--owner <name>` |
-| nothing | no flags: the authenticated user, 12 months, written to `repo-viz.html` and opened |
+| nothing | no flags: the authenticated user, 12 months, written to `output/repo-viz.html` and opened |
 
-`repo-viz.html` is gitignored, so the default output path is already the right one. Pass `--out` only when a different path was asked for.
+`output/` is gitignored, so the default output path — `output/repo-viz.html`, beside the script — is already the right one. Pass `--out` only when a different path was asked for.
 
 ## --json
 

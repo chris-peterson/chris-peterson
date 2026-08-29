@@ -1504,6 +1504,11 @@ def build_html(payload):
             .replace("__SCRIPT__", SCRIPT))
 
 
+def default_output_dir():
+    """Beside the script, so a run from any directory lands in the same place."""
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
+
+
 def node_id(owner):
     return gh(["api", f"users/{owner}", "--jq", ".node_id"]).strip()
 
@@ -1514,7 +1519,8 @@ def main():
     parser.add_argument("--owner", help="GitHub account (default: the gh-authenticated user)")
     parser.add_argument("--months", type=int, default=12,
                         help="how far back to read (default 12)")
-    parser.add_argument("--out", default="repo-viz.html", help="where to write the page")
+    parser.add_argument("--out", help="where to write the page "
+                                      "(default: output/repo-viz.html beside this script)")
     parser.add_argument("--json", action="store_true",
                         help="write the gathered data as JSON instead of a page")
     parser.add_argument("--no-open", action="store_true", help="do not open the page")
@@ -1543,7 +1549,8 @@ def main():
         sys.stdout.write("\n")
         return 0
 
-    out = os.path.abspath(args.out)
+    out = os.path.abspath(args.out or os.path.join(default_output_dir(), "repo-viz.html"))
+    os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, "w", encoding="utf-8") as handle:
         handle.write(build_html(payload))
     commits = sum(r["commits"] for r in payload["repos"])

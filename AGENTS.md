@@ -10,6 +10,7 @@
 | `repo-status.py` | A cross-repo dashboard and reconciler for every project under the account |
 | `repo-viz.py` | A one-page chart of where attention went across those projects, week by week |
 | `ignore.yml` | The repos a scan skips, read by both scripts |
+| `output/` | Where both scripts write their pages. Gitignored. |
 | `requirements.txt` | PyYAML, the only dependency either script has |
 | `.claude/commands/` | `/repo-status` and `/repo-viz`, each a thin wrapper mapping free-form arguments onto the script's flags |
 
@@ -24,6 +25,7 @@ authenticated user and a clone tree at `~/src/github/<owner>`.
 ./repo-status.py --only uncommitted       # one section
 ./repo-status.py --skip issues --skip prs
 ./repo-status.py --fix                    # reconcile, prompting before each delete
+./repo-status.py --html                   # the report, and a page beside it
 ```
 
 Sections print in a fixed order, each one independently selectable with
@@ -100,12 +102,58 @@ isn't checked out, via `git fetch origin <default>:<default>` — a refspec fetc
 moves the ref and refuses anything that isn't a fast-forward, which is the
 safety property a `merge` couldn't give from another branch.
 
+### The page
+
+`--html` writes `output/repo-status.html` and opens it, alongside the terminal
+report rather than instead of it. The page is self-contained — no CDN, no build
+step, no network at view time — and shares `repo-viz.html`'s tokens, cards and
+theme toggle, so the two read as one system.
+
+Where the terminal prints a paste-ready command under each actionable finding,
+the page makes that command the heaviest element on the row and copies it on
+click. `Copy N commands` takes the whole run at once. A command that takes you
+to the work rather than settling it — the `cd` under a dirty tree — is marked
+`advisory` and stays out of that list while staying copyable on its own.
+
+The eight sections carry their run order as a numbered rail across the top,
+which doubles as jump-nav and as the count at a glance. Colour is spent on one
+thing: a left rule marks work only one clone holds. Groups flagged `info`
+(clones filtered out of the run, clones of other owners) report context rather
+than work, so they stay out of every count the page presents as a finding.
+
+Each section is a `<details>`, so folding is the browser's own — keyboard
+handling and all — rather than ARIA wired by hand. A section opens when it has
+work in it and stays folded when it came back clear, which makes `Collapse all`
+a second reading of the same page: every section, its tally, and nothing else.
+A search opens the sections holding matches, since a hit inside a folded one
+would otherwise be invisible; clearing it hands every section back to the state
+it started in. Jumping from the rail opens its target for the same reason.
+
 ### Adding a section
 
-A section is a `section_*` function that takes already-gathered state and
-prints. Add its name to `SECTIONS`, gather whatever remote data it needs inside
-`probe_repo` behind a `wanted` check so unselected sections cost no API calls,
-and call it from `main` in report order.
+A section is three functions:
+
+| Function | Does |
+| --- | --- |
+| `collect_<name>` | Takes already-gathered state, returns findings. Reads only. |
+| `section_<name>` | Prints those findings, and carries out `--fix`. |
+| `page_<name>` | Turns them into `(groups, clean-message)` for the page. |
+
+Add its name to `SECTIONS`, its tally noun to `SECTION_UNITS`, its heading and
+blurb to `SECTION_TITLES`, and its builder to the map in `build_payload`. Gather
+whatever remote data it needs inside `probe_repo` behind a `wanted` check so
+unselected sections cost no API calls, and call all three from `main` in report
+order.
+
+The split is what keeps the two renderings honest: both read the same findings,
+so a section cannot say one thing in the terminal and another on the page.
+`collect_*` must stay free of side effects — it runs even under `--json`, where
+nothing is printed and nothing is fixed.
+
+The page speaks in the same three levels for every section — `group`, `item`,
+`step` — so one renderer draws all eight. A step carries either `text` or
+`cells` (labelled spans that line up across rows), and optionally the command
+that settles it.
 
 Wrap each probe in `attempt("<area>", …)` and have the section print
 `r["errors"]["<area>"]` itself. A repo can answer some endpoints and 404 on
@@ -150,7 +198,7 @@ with PyYAML the only import outside the standard library. It writes a
 self-contained HTML page — no CDN, no build step, no network at view time.
 
 ```bash
-./repo-viz.py                       # write repo-viz.html and open it
+./repo-viz.py                       # write output/repo-viz.html and open it
 ./repo-viz.py --months 24           # widen the window
 ./repo-viz.py --owner some-user     # someone else's public projects
 ./repo-viz.py --out /tmp/x.html --no-open
