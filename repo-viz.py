@@ -38,7 +38,7 @@ WEEK_MINUTES = 7 * 24 * 60
 
 
 IGNORE_FILE = "ignore.yml"
-IGNORE_KEYS = {"archived", "repos"}
+IGNORE_KEYS = {"archived", "forks", "repos"}
 
 
 class IgnoreError(RuntimeError):
@@ -46,25 +46,27 @@ class IgnoreError(RuntimeError):
 
 
 class Ignore:
-    def __init__(self, archived=False, names=()):
+    def __init__(self, archived=False, forks=False, names=()):
         self.archived = archived
+        self.forks = forks
         self.names = {n.lower() for n in names}
 
-    def skips(self, name, archived=False):
-        return (self.archived and archived) or (name or "").lower() in self.names
+    def skips(self, name, archived=False, fork=False):
+        return self.reason(name, archived, fork) is not None
 
-    def reason(self, name, archived=False):
+    def reason(self, name, archived=False, fork=False):
         if (name or "").lower() in self.names:
             return IGNORE_FILE
-        return "archived" if self.archived and archived else None
+        if self.archived and archived:
+            return "archived"
+        return "fork" if self.forks and fork else None
 
     def __bool__(self):
-        return bool(self.archived or self.names)
+        return bool(self.archived or self.forks or self.names)
 
     def describe(self):
-        parts = []
-        if self.archived:
-            parts.append("archived")
+        parts = [state for state, on in (("archived", self.archived),
+                                         ("forks", self.forks)) if on]
         if self.names:
             parts.append(", ".join(sorted(self.names)))
         return "; ".join(parts) or "nothing"
@@ -90,13 +92,15 @@ def load_ignore(enabled=True):
     if unknown:
         raise IgnoreError(f"{IGNORE_FILE}: unknown key {', '.join(sorted(unknown))!r}, "
                           f"expected one of {', '.join(sorted(IGNORE_KEYS))}")
-    archived = parsed.get("archived", False)
-    if not isinstance(archived, bool):
-        raise IgnoreError(f"{IGNORE_FILE}: `archived` takes true or false")
+    states = {}
+    for key in ("archived", "forks"):
+        states[key] = parsed.get(key, False)
+        if not isinstance(states[key], bool):
+            raise IgnoreError(f"{IGNORE_FILE}: `{key}` takes true or false")
     repos = parsed.get("repos") or []
     if not isinstance(repos, list):
         raise IgnoreError(f"{IGNORE_FILE}: `repos` takes a list of `- name` entries")
-    return Ignore(archived=archived, names=repos)
+    return Ignore(archived=states["archived"], forks=states["forks"], names=repos)
 
 
 class GhError(RuntimeError):
@@ -219,7 +223,7 @@ def gather(owner, author, start, weeks, progress=True, ignore=None):
         for node in page["nodes"]:
             # Skipping before shape() is the point: shape() paginates the repo's
             # whole commit history when one page won't hold it.
-            if ignore.skips(node["name"], node["isArchived"]):
+            if ignore.skips(node["name"], node["isArchived"], node["isFork"]):
                 skipped.append(node["name"])
                 continue
             repos.append(shape(owner, author, node, since, start, progress))

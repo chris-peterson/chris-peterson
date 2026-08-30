@@ -68,6 +68,33 @@ Every clone belongs at `<root>/<repo name>`, flat. Grouping directories
 `reconcile` reports them and `--fix` moves them onto their own path, then
 removes the grouping directory it just emptied.
 
+### What a run covers
+
+A run lists the whole account and then holds back whatever `ignore.yml` says it
+isn't looking at — forks, archived repos, and the names. A `scope:` line at the
+top of the report names every held-back repo under the reason it was held and
+ends with the flags that widen the run — `--include-forks`,
+`--include-archived`, `--no-ignore`. Holding them back after the listing rather
+than filtering them at the API is what lets the report name them, and lets
+`reconcile` accept their clones without spending a call working out what they
+are.
+
+Their clones stay in the local passes. `uncommitted` and `behind` still read a
+fork's clone, because work only your disk holds is worth reporting whatever the
+run's remote scope is. A repo named in `ignore.yml` is the exception: its clone
+drops out with it.
+
+### Where a name takes you
+
+Every project a section names is an OSC 8 hyperlink to the subresource that
+section is about — the branch sections and `uncommitted` point at `/branches`,
+`unreleased` at `/releases`, `prs` at `/pulls`, `issues` at `/issues`, `behind`
+at the commit log of the branch it measured. The detail beside the name keeps
+its own link, so a pull request row carries both the repo's PR list and that
+pull request. A clone's link is built from the `owner/name` parsed out of its
+`origin`, never from the directory it sits in. Where output isn't a terminal
+the URL prints inline after the label instead.
+
 ### The two halves
 
 Remote state comes from the GitHub API and reflects the server. Local state
@@ -169,6 +196,7 @@ anyway.
 
 ```yaml
 archived: true      # skip archived repos
+forks: true         # skip forks
 repos:              # skipped by name, whatever their state
   - home-tech
 ```
@@ -181,13 +209,16 @@ one belongs in the other too.
 
 Where the two disagree, the more specific instruction wins:
 `repo-status.py --repo home-tech` probes an ignored repo because you named it,
-and `--include-archived` outranks `archived: true`.
+and `--include-archived` and `--include-forks` outrank `archived: true` and
+`forks: true`.
 
 The skip has to happen before the expensive work, not after. In `repo-viz.py`
 that means filtering inside `gather` before `shape`, which paginates a repo's
 whole commit history when one page won't hold it. In `repo-status.py` it means
 dropping an ignored repo's clone alongside its remote record, so `reconcile`
 doesn't spend an API call classifying a clone whose repo it just filtered out.
+A held-back fork or archived repo keeps its clone but is recognized by name for
+the same reason — the call is what the holdback saves.
 Each script prints what it skipped.
 
 ## repo-viz.py
@@ -229,9 +260,10 @@ index is plain division and every bucket is the same width.
 ### What it draws
 
 Five views of one slice, scoped by a single filter row (window length, and
-forks and private repos each toggle). Archived repos are excluded by
-`ignore.yml` rather than by a toggle, so `--no-ignore` is what brings them
-back, flagged `archived` on the tile and in the table:
+forks and private repos each toggle). What `ignore.yml` holds back never
+reaches the filter row at all, so `--no-ignore` is what brings a fork or an
+archived repo back, flagged `fork` or `archived` on the tile and in the table —
+and the Forks toggle is what sorts them once they are there:
 
 - **focus** — weekly commits as a stacked area, one band per project. How much
   energy, and where it went.

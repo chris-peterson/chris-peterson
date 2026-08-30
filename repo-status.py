@@ -43,7 +43,12 @@ SECTIONS = ["reconcile", "uncommitted", "local-branches", "orphan-branches",
 
 
 IGNORE_FILE = "ignore.yml"
-IGNORE_KEYS = {"archived", "repos"}
+IGNORE_KEYS = {"archived", "forks", "repos"}
+
+# Every reason a repo stays out of a run, and the flag that widens the run to
+# take it back in.
+HOLD_WIDENS = {IGNORE_FILE: "--no-ignore", "archived": "--include-archived",
+               "fork": "--include-forks"}
 
 
 class IgnoreError(RuntimeError):
@@ -51,25 +56,27 @@ class IgnoreError(RuntimeError):
 
 
 class Ignore:
-    def __init__(self, archived=False, names=()):
+    def __init__(self, archived=False, forks=False, names=()):
         self.archived = archived
+        self.forks = forks
         self.names = {n.lower() for n in names}
 
-    def skips(self, name, archived=False):
-        return (self.archived and archived) or (name or "").lower() in self.names
+    def skips(self, name, archived=False, fork=False):
+        return self.reason(name, archived, fork) is not None
 
-    def reason(self, name, archived=False):
+    def reason(self, name, archived=False, fork=False):
         if (name or "").lower() in self.names:
             return IGNORE_FILE
-        return "archived" if self.archived and archived else None
+        if self.archived and archived:
+            return "archived"
+        return "fork" if self.forks and fork else None
 
     def __bool__(self):
-        return bool(self.archived or self.names)
+        return bool(self.archived or self.forks or self.names)
 
     def describe(self):
-        parts = []
-        if self.archived:
-            parts.append("archived")
+        parts = [state for state, on in (("archived", self.archived),
+                                         ("forks", self.forks)) if on]
         if self.names:
             parts.append(", ".join(sorted(self.names)))
         return "; ".join(parts) or "nothing"
@@ -95,13 +102,15 @@ def load_ignore(enabled=True):
     if unknown:
         raise IgnoreError(f"{IGNORE_FILE}: unknown key {', '.join(sorted(unknown))!r}, "
                           f"expected one of {', '.join(sorted(IGNORE_KEYS))}")
-    archived = parsed.get("archived", False)
-    if not isinstance(archived, bool):
-        raise IgnoreError(f"{IGNORE_FILE}: `archived` takes true or false")
+    states = {}
+    for key in ("archived", "forks"):
+        states[key] = parsed.get(key, False)
+        if not isinstance(states[key], bool):
+            raise IgnoreError(f"{IGNORE_FILE}: `{key}` takes true or false")
     repos = parsed.get("repos") or []
     if not isinstance(repos, list):
         raise IgnoreError(f"{IGNORE_FILE}: `repos` takes a list of `- name` entries")
-    return Ignore(archived=archived, names=repos)
+    return Ignore(archived=states["archived"], forks=states["forks"], names=repos)
 
 
 class GhError(RuntimeError):
@@ -221,14 +230,18 @@ def find_clones(root, depth):
     return clones
 
 
-def list_repos(owner, include_forks, include_archived, limit):
+def list_repos(owner, limit):
     args = ["repo", "list", owner, "--limit", str(limit), "--json",
             "name,owner,defaultBranchRef,isPrivate,isFork,isArchived,pushedAt,url,sshUrl"]
-    if not include_forks:
-        args.append("--source")
-    if not include_archived:
-        args.append("--no-archived")
     return json.loads(gh(args))
+
+
+def hold_back(repo, ignore):
+    """Why a repo sits outside this run's scope, or None when it is in scope.
+
+    The whole account is listed so a held-back repo can be named and counted;
+    holding it back here is what keeps it from costing an API call later."""
+    return ignore.reason(repo["name"], repo["isArchived"], repo["isFork"])
 
 
 def repo_record(full):
@@ -596,9 +609,29 @@ def paint(text, code):
 
 def link(label, url):
     """OSC 8 hyperlink; falls back to the bare URL when output isn't a terminal."""
+    if not url:
+        return label
     if not TTY:
         return f"{label}  {url}"
     return f"\033]8;;{url}\033\\{label}\033]8;;\033\\"
+
+
+def name_link(label, url):
+    """Link a project name to the page its section is about.
+
+    Terminal only: a plain dump already carries the URL of whatever detail sits
+    beside the name, and a second one there reads as part of the first."""
+    return link(label, url) if TTY else label
+
+
+def clone_url(clone, path=""):
+    """The GitHub page for a clone's origin, keyed off the parsed owner/name.
+
+    The directory name can't be trusted for this — relocating a clone onto its
+    own path is the very thing `reconcile` exists to fix."""
+    if not (clone["owner"] and clone["name"]):
+        return None
+    return f"https://github.com/{clone['owner']}/{clone['name']}{path}"
 
 
 def fmt_date(stamp):
@@ -641,18 +674,21 @@ def confirm(question, assume_yes):
 # sections
 # --------------------------------------------------------------------------- #
 
-def collect_reconcile(repos, clones, root, owner, jobs):
+def collect_reconcile(repos, held, clones, root, owner, jobs):
     """Clone tree vs owned repos, classified. Reads only; writes nothing."""
     owned = {r["name"].lower(): r for r in repos}
+    held_by_name = {r["name"].lower(): why for r, why in held}
     mine = [c for c in clones if c["owner"] and c["owner"].lower() == owner.lower()]
     foreign = [c for c in clones if c not in mine]
     cloned = {c["name"].lower() for c in mine if c["name"]}
 
     missing = [r for r in repos if r["name"].lower() not in cloned]
-    unmatched = [c for c in mine if c["name"] and c["name"].lower() not in owned]
+    unmatched = [c for c in mine if c["name"]
+                 and c["name"].lower() not in owned
+                 and c["name"].lower() not in held_by_name]
 
-    # A clone whose origin is absent from the owned list is either a repo that
-    # was deleted or renamed, or one this run filtered out (archived, fork).
+    # A clone whose origin is in neither list is either a repo that was deleted
+    # or renamed, or one the account listing never reached.
     def classify(clone):
         full = f"{clone['owner']}/{clone['name']}"
         try:
@@ -662,7 +698,7 @@ def collect_reconcile(repos, clones, root, owner, jobs):
                 return clone, "gone", None
             return clone, "error", str(err)
         moved = info["full_name"].lower() != full.lower()
-        return clone, "moved" if moved else "filtered", info
+        return clone, "moved" if moved else "outside", info
 
     verdicts = []
     if unmatched:
@@ -671,14 +707,15 @@ def collect_reconcile(repos, clones, root, owner, jobs):
 
     gone = [(c, dirty_count(c["path"])) for c, kind, _ in verdicts if kind == "gone"]
     moved = [(c, i) for c, kind, i in verdicts if kind == "moved"]
-    filtered = [(c, i) for c, kind, i in verdicts if kind == "filtered"]
+    outside = [(c, i) for c, kind, i in verdicts if kind == "outside"]
     failed = [(c, i) for c, kind, i in verdicts if kind == "error"]
 
     # Every clone belongs at <root>/<repo name>. A clone nested under a grouping
     # directory, or filed under an upstream's name when the fork is your own,
     # is the finding — the layout is what makes the two agree at a glance.
     canonical_names = {r["name"].lower(): r["name"] for r in repos}
-    canonical_names.update({i["name"].lower(): i["name"] for _, i in filtered})
+    canonical_names.update({r["name"].lower(): r["name"] for r, _ in held})
+    canonical_names.update({i["name"].lower(): i["name"] for _, i in outside})
     misplaced = []
     for clone in mine:
         canonical = canonical_names.get((clone["name"] or "").lower())
@@ -688,6 +725,13 @@ def collect_reconcile(repos, clones, root, owner, jobs):
         if os.path.dirname(clone["rel"]) or leaf.lower() != canonical.lower():
             misplaced.append((clone, canonical))
 
+    held_rows = [{"name": r["name"], "url": r["url"], "why": why,
+                  "cloned": r["name"].lower() in cloned} for r, why in held]
+    held_rows += [{"name": f"{c['owner']}/{c['name']}", "url": i["html_url"],
+                   "why": "outside the account listing", "cloned": True}
+                  for c, i in outside]
+    held_rows.sort(key=lambda h: (h["why"], h["name"].lower()))
+
     return {
         "root": root,
         "owner": owner,
@@ -696,7 +740,7 @@ def collect_reconcile(repos, clones, root, owner, jobs):
         "gone": sorted(gone, key=lambda pair: pair[0]["rel"].lower()),
         "misplaced": sorted(misplaced, key=lambda pair: pair[0]["rel"].lower()),
         "moved": sorted(moved, key=lambda pair: pair[0]["rel"].lower()),
-        "filtered": sorted(filtered, key=lambda pair: pair[0]["rel"].lower()),
+        "held": held_rows,
         "failed": failed,
         "foreign": sorted(foreign, key=lambda c: c["rel"].lower()),
     }
@@ -705,11 +749,11 @@ def collect_reconcile(repos, clones, root, owner, jobs):
 def section_reconcile(report, clones, fix, assume_yes):
     """Print the reconcile findings. Returns the clones that survive the pass."""
     root, owner = report["root"], report["owner"]
-    heading("RECONCILE", f"{root} vs the {report['owned']} repo(s) you own on GitHub")
+    heading("RECONCILE", f"{root} vs the {report['owned']} repo(s) in scope")
 
     missing, gone = report["missing"], report["gone"]
     misplaced, moved = report["misplaced"], report["moved"]
-    filtered, failed, foreign = report["filtered"], report["failed"], report["foreign"]
+    failed, foreign = report["failed"], report["foreign"]
 
     clean = True
 
@@ -758,7 +802,8 @@ def section_reconcile(report, clones, fix, assume_yes):
         print(paint(f"  cloned somewhere other than {root}/<repo> ({len(misplaced)})", "1"))
         for clone, canonical in misplaced:
             target = os.path.join(root, canonical)
-            print(f"    {clone['rel']}  ->  {canonical}")
+            landing = name_link(canonical, f"https://github.com/{owner}/{canonical}")
+            print(f"    {clone['rel']}  ->  {landing}")
             if os.path.exists(target):
                 print(paint(f"      {target} is already taken — move that aside first", "31"))
                 continue
@@ -777,14 +822,9 @@ def section_reconcile(report, clones, fix, assume_yes):
         print()
         print(paint(f"  cloned under an old name ({len(moved)})", "1"))
         for clone, info in moved:
-            print(f"    {clone['rel']}  ->  renamed to {info['full_name']}")
+            print(f"    {clone['rel']}  ->  renamed to "
+                  + name_link(info["full_name"], info["html_url"]))
             print(f"      git -C {clone['path']} remote set-url origin {info['ssh_url']}")
-
-    if filtered:
-        print()
-        print(f"  cloned, filtered out of this run ({len(filtered)}): "
-              + ", ".join(sorted(c["rel"] for c, _ in filtered)))
-        print("    (archived or fork — pass --include-archived / --include-forks to include)")
 
     if failed:
         clean = False
@@ -827,7 +867,7 @@ def section_uncommitted(rows, states):
 
     for s, pending in rows:
         print()
-        print(paint(f"  {s['rel']}", "1"))
+        print(paint(name_link(f"  {s['rel']}", clone_url(s, "/branches")), "1"))
         if not s["dirty"] and not pending:
             print("    committed and pushed")
             continue
@@ -869,7 +909,8 @@ def section_local_branches(rows, fix, assume_yes):
     for row in rows:
         s, merged, gone = row["state"], row["merged"], row["gone"]
         print()
-        print(paint(f"  {s['rel']}  ({len(merged) + len(gone)})", "1"))
+        named = name_link(s["rel"], clone_url(s, "/branches"))
+        print(paint(f"  {named}  ({len(merged) + len(gone)})", "1"))
         if merged:
             print(f"    merged into {s['default']} ({len(merged)}): " + ", ".join(merged))
         if gone:
@@ -937,7 +978,7 @@ def section_orphan_branches(rows, stale_days, fix, assume_yes):
                 print(paint(f"  {r['repo']}: {area}: {message}", "31"))
             continue
         print()
-        print(paint(f"  {r['repo']}", "1"))
+        print(paint(name_link(f"  {r['repo']}", f"{r['url']}/branches"), "1"))
         if r["branches_truncated"]:
             print("    note: more than 100 branches; only the first 100 were checked")
         for branch in row["orphans"]:
@@ -994,9 +1035,11 @@ def section_unreleased(detailed, max_commits):
         qualifier = ", tag only" if rel["kind"] == "tag" else (
             ", prerelease" if rel["prerelease"] else "")
         span = rel["tag"] + "..." + r["branch"]
-        head = (f"  {r['repo']}: {r['ahead']} commit(s) since {rel['tag']}"
-                f" ({fmt_date(rel['published'])}{qualifier})")
-        print(paint(link(head, f"{r['url']}/compare/{span}"), "1"))
+        named = name_link(r["repo"], f"{r['url']}/releases")
+        pending = link(f"{r['ahead']} commit(s) since {rel['tag']}"
+                       f" ({fmt_date(rel['published'])}{qualifier})",
+                       f"{r['url']}/compare/{span}")
+        print(paint(f"  {named}: {pending}", "1"))
         if r["behind"]:
             print(f"    note: {rel['tag']} is {r['behind']} commit(s) ahead of "
                   f"{r['branch']} (tagged off-branch?)")
@@ -1033,8 +1076,8 @@ def section_prs(rows, broken):
         p = pull
         days = age_days(p["created"])
         flags = " [draft]" if p["draft"] else ""
-        label = (f"  {r['repo']}#{p['number']}{flags}  {p['title']}")
-        print(link(label, p["url"]))
+        named = name_link(r["repo"], f"{r['url']}/pulls")
+        print(f"  {named}" + link(f"#{p['number']}{flags}  {p['title']}", p["url"]))
         print(f"      {p['head']} -> {p['base']}  by {p['author']}  "
               f"opened {fmt_date(p['created'])} ({days}d)")
 
@@ -1086,8 +1129,9 @@ def section_issues(groups, broken):
         print(paint(f"  {title}{due}  — {len(group['items'])} issue(s)", "1"))
         for r, issue in group["items"]:
             labels = f"  [{', '.join(issue['labels'])}]" if issue["labels"] else ""
-            label = f"    {r['repo']}#{issue['number']}  {issue['title']}{labels}"
-            print(link(label, issue["url"]))
+            named = name_link(r["repo"], f"{r['url']}/issues")
+            print(f"    {named}"
+                  + link(f"#{issue['number']}  {issue['title']}{labels}", issue["url"]))
 
 
 def collect_behind(states, all_details):
@@ -1127,7 +1171,10 @@ def section_behind(rows, states, fix):
         branch = s["branch"] or "(detached)"
         rendered = [paint(n["text"], "31") if n["tone"] == "risk" else n["text"]
                     for n in notes]
-        print(f"  {s['rel']:<{width}}  {branch:<24}  " + "; ".join(rendered))
+        named = name_link(s["rel"],
+                          clone_url(s, f"/commits/{s['branch']}" if s["branch"] else ""))
+        print(f"  {named}{' ' * (width - len(s['rel']))}  {branch:<24}  "
+              + "; ".join(rendered))
         if not fix:
             continue
         if s["behind"] and not s["ahead"] and not s["dirty"] and s["upstream"]:
@@ -1228,11 +1275,13 @@ def page_reconcile(report, root):
         groups.append(group("Could not be checked", [
             item(clone["rel"], steps=[step(err, tone="risk")])
             for clone, err in report["failed"]], tone="risk"))
-    if report["filtered"]:
+    if report["held"]:
         groups.append(group(
-            "Cloned, filtered out of this run",
-            [item(clone["rel"]) for clone, _ in report["filtered"]],
-            note="Archived or a fork — pass --include-archived / --include-forks to include.",
+            "Held back from this run",
+            [item(h["name"], url=h["url"],
+                  tags=[h["why"]] + (["cloned"] if h["cloned"] else []))
+             for h in report["held"]],
+            note="Widen the run with --include-forks, --include-archived, or --no-ignore.",
             info=True, dense=True))
     if report["foreign"]:
         groups.append(group(
@@ -2213,10 +2262,13 @@ def main():
     parser.add_argument("--stale-days", type=int, default=1,
                         help="a remote branch with no open PR is orphaned after this "
                              "many days without a commit (default: 1)")
-    parser.add_argument("--include-forks", action="store_true")
+    parser.add_argument("--include-forks", action="store_true",
+                        help="scan forks, overriding `forks: true` in {}".format(IGNORE_FILE))
     parser.add_argument("--no-ignore", action="store_true",
                         help="scan every repo, disregarding {}".format(IGNORE_FILE))
-    parser.add_argument("--include-archived", action="store_true")
+    parser.add_argument("--include-archived", action="store_true",
+                        help="scan archived repos, overriding `archived: true` in "
+                             "{}".format(IGNORE_FILE))
     parser.add_argument("--include-release-commits", action="store_true",
                         help="count the current release's own version-bump commit as pending")
     parser.add_argument("--max-commits", type=int, default=10,
@@ -2254,26 +2306,37 @@ def main():
         ignore = load_ignore(enabled=not args.no_ignore)
     except IgnoreError as err:
         sys.exit(str(err))
+    # An explicit flag outranks the file.
     if args.include_archived:
-        ignore.archived = False   # an explicit flag outranks the file
+        ignore.archived = False
+    if args.include_forks:
+        ignore.forks = False
 
-    skipped = []
+    held = []
     if args.repos:
         # Naming a repo outright asks for it, so the ignore list stays out of it.
         repos = [repo_record(name if "/" in name else f"{owner}/{name}") for name in args.repos]
     else:
-        repos = list_repos(owner, args.include_forks, args.include_archived, args.repo_limit)
-        skipped = sorted(r["name"] for r in repos
-                         if ignore.skips(r["name"], r["isArchived"]))
-        repos = [r for r in repos if not ignore.skips(r["name"], r["isArchived"])]
+        listed = [(r, hold_back(r, ignore))
+                  for r in list_repos(owner, args.repo_limit)]
+        held = [(r, why) for r, why in listed if why]
+        repos = [r for r, why in listed if not why]
     repos.sort(key=lambda r: r["name"].lower())
 
     if not repos:
         sys.exit(f"no repositories found for {owner}")
 
-    if skipped and not args.json:
-        print(f"{IGNORE_FILE}: skipping {len(skipped)} "
-              f"({', '.join(skipped)})")
+    if held and not args.json:
+        print(f"scope: {len(repos)} of the {len(repos) + len(held)} repo(s) you own; "
+              f"{len(held)} held back")
+        by_reason = {}
+        for repo, why in held:
+            by_reason.setdefault(why, []).append(repo)
+        for why in sorted(by_reason, key=lambda w: (-len(by_reason[w]), w)):
+            named = sorted(by_reason[why], key=lambda r: r["name"].lower())
+            print(f"  {why} ({len(named)}): "
+                  + ", ".join(name_link(r["name"], r["url"]) for r in named))
+        print("  widen with " + ", ".join(sorted(HOLD_WIDENS[w] for w in by_reason)))
 
     local_sections = wanted & {"reconcile", "uncommitted", "local-branches",
                                "orphan-branches", "behind"}
@@ -2302,7 +2365,7 @@ def main():
     found = {}
 
     if "reconcile" in wanted:
-        found["reconcile"] = collect_reconcile(repos, clones, root, owner, args.jobs)
+        found["reconcile"] = collect_reconcile(repos, held, clones, root, owner, args.jobs)
         if not quiet:
             clones = section_reconcile(found["reconcile"], clones, args.fix, args.yes)
 
