@@ -23,6 +23,9 @@ missing and fast-forwards what is cleanly behind, then asks y/n before each
 change that moves or removes something: relocating a clone onto its own path,
 deleting a clone whose repo is gone, deleting a merged local branch, deleting an
 orphaned remote branch.
+
+Every run writes the findings to output/repo-status.html as well as the terminal
+report; --open opens it.
 """
 
 import argparse
@@ -2277,12 +2280,9 @@ def main():
                         help="max repos to enumerate (default: 300)")
     parser.add_argument("--jobs", type=int, default=8, help="parallel probes (default: 8)")
     parser.add_argument("--json", action="store_true", help="emit raw JSON instead of a report")
-    parser.add_argument("--html", action="store_true",
-                        help="also write the findings as a self-contained page")
-    parser.add_argument("--out", help="where --html writes (default: output/repo-status.html "
-                                      "beside this script)")
-    parser.add_argument("--no-open", action="store_true",
-                        help="with --html, do not open the page")
+    parser.add_argument("--out", help="where the page is written "
+                                      "(default: output/repo-status.html beside this script)")
+    parser.add_argument("--open", action="store_true", help="open the page when the run ends")
     parser.add_argument("--all-details", action="store_true",
                         help="show clean repos and clones too")
     args = parser.parse_args()
@@ -2417,11 +2417,10 @@ def main():
         print()
         return
 
-    if args.html:
-        out = write_page(found, wanted, owner, root, states, results, args)
-        print(f"\n-> {out}", file=sys.stderr)
-        if not args.no_open:
-            webbrowser.open(f"file://{out}")
+    out = write_page(found, wanted, owner, root, states, results, args)
+    print(f"\n-> {out}", file=sys.stderr)
+    if args.open:
+        webbrowser.open(f"file://{out}")
 
 
 if __name__ == "__main__":
