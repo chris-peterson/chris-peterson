@@ -25,7 +25,7 @@ authenticated user and a clone tree at `~/src/github/<owner>`.
 ./repo-status.py --only uncommitted       # one section
 ./repo-status.py --skip issues --skip prs
 ./repo-status.py --fix                    # reconcile, prompting before each delete
-./repo-status.py --html                   # the report, and a page beside it
+./repo-status.py --open                   # open the page the run wrote
 ```
 
 Sections print in a fixed order, each one independently selectable with
@@ -131,10 +131,11 @@ safety property a `merge` couldn't give from another branch.
 
 ### The page
 
-`--html` writes `output/repo-status.html` and opens it, alongside the terminal
-report rather than instead of it. The page is self-contained — no CDN, no build
-step, no network at view time — and shares `repo-viz.html`'s tokens, cards and
-theme toggle, so the two read as one system.
+Every run writes `output/repo-status.html` alongside the terminal report, and
+`--open` opens it. The findings are already gathered by the time the report
+prints, so the page costs a template rather than a flag. The page is
+self-contained — no CDN, no build step, no network at view time — and shares
+`repo-viz.html`'s tokens, cards and theme toggle, so the two read as one system.
 
 Where the terminal prints a paste-ready command under each actionable finding,
 the page makes that command the heaviest element on the row and copies it on
@@ -235,6 +236,12 @@ self-contained HTML page — no CDN, no build step, no network at view time.
 ./repo-viz.py --out /tmp/x.html --no-open
 ./repo-viz.py --json                # the gathered data, for another tool
 ```
+
+Both scripts write their page on every run, and differ on whether it opens.
+Here the page is the whole deliverable (the terminal gets one summary line), so
+a run opens it and `--no-open` holds it back. `repo-status.py` defaults the
+other way, since its terminal report is what you came for and its page is a
+second reading of the same findings.
 
 ### Only the owner's own commits count
 

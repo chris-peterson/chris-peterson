@@ -1,6 +1,6 @@
 ---
 description: Cross-repo dashboard for clones out of sync, stale branches, unreleased commits, open PRs and issues
-argument-hint: "[section] [repo] [--fix] [--html]"
+argument-hint: "[section] [repo] [--fix] [--open]"
 disable-model-invocation: true
 ---
 
@@ -15,7 +15,7 @@ Run `./repo-status.py` from the repo root with the flags below, then report what
 | a section name (`reconcile`, `uncommitted`, `local-branches`, `orphan-branches`, `prs`, `unreleased`, `issues`, `behind`) | `--only <section>`, repeatable |
 | `no <section>`, `skip <section>` | `--skip <section>`, repeatable |
 | a bare repo name | `--repo <name>`, repeatable |
-| `page`, `html`, `chart`, `open it` | `--html` |
+| `page`, `html`, `chart`, `open it` | `--open` |
 | nothing | no flags: all eight sections, read-only |
 
 A prefix that unambiguously names one section (`orphan`, `recon`, `prs`) resolves to it. One that matches several, like `branches` or `un`, is a question rather than a guess.
@@ -26,11 +26,11 @@ The script's own output is the deliverable. Lead with the sections that have fin
 
 Each section prints its own probe errors. A repo can answer some endpoints and 404 on others (pull requests turned off is the common case), so an error under `prs` says nothing about the rest of the report. Report it where it appeared and leave the other sections' findings standing.
 
-## --html
+## The page
 
-`--html` writes `output/repo-status.html` and opens it, on top of the terminal report rather than instead of it. `output/` is gitignored, so the default path is already the right one; pass `--out` only when a different one was asked for.
+Every run writes `output/repo-status.html` on top of the terminal report, and prints where it landed. `output/` is gitignored, so the default path is already the right one; pass `--out` only when a different one was asked for. `--open` opens it in a browser, which only helps when the run is in front of the user.
 
-The page carries the same findings the report does, each actionable one with the command that settles it, copied on click. When the arguments ask for it, report the findings as above and add where the page landed.
+The page carries the same findings the report does, each actionable one with the command that settles it, copied on click. Report the findings as above, and add where the page landed when the arguments asked for it.
 
 ## --fix
 
