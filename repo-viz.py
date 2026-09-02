@@ -39,6 +39,7 @@ WEEK_MINUTES = 7 * 24 * 60
 
 IGNORE_FILE = "ignore.yml"
 IGNORE_KEYS = {"archived", "forks", "repos"}
+REPO_KEYS = {"name", "reason"}
 
 
 class IgnoreError(RuntimeError):
@@ -49,14 +50,16 @@ class Ignore:
     def __init__(self, archived=False, forks=False, names=()):
         self.archived = archived
         self.forks = forks
-        self.names = {n.lower() for n in names}
+        # {lowercased name: the reason it is skipped, or None when it gives none}
+        self.names = dict(names)
 
     def skips(self, name, archived=False, fork=False):
         return self.reason(name, archived, fork) is not None
 
     def reason(self, name, archived=False, fork=False):
-        if (name or "").lower() in self.names:
-            return IGNORE_FILE
+        key = (name or "").lower()
+        if key in self.names:
+            return self.names[key] or IGNORE_FILE
         if self.archived and archived:
             return "archived"
         return "fork" if self.forks and fork else None
@@ -68,8 +71,41 @@ class Ignore:
         parts = [state for state, on in (("archived", self.archived),
                                          ("forks", self.forks)) if on]
         if self.names:
-            parts.append(", ".join(sorted(self.names)))
+            parts.append(", ".join(f"{n} ({self.names[n]})" if self.names[n] else n
+                                   for n in sorted(self.names)))
         return "; ".join(parts) or "nothing"
+
+
+def repo_names(entries):
+    """Read `repos:` into {name: reason}, where an entry gives its reason or not.
+
+    A bare `- name` skips the repo without saying why and reports under the file
+    itself; a `- name:` / `reason:` mapping reports under the reason instead, so
+    the scope line groups the ones skipped for the same cause together."""
+    named = {}
+    for entry in entries:
+        if isinstance(entry, str):
+            if not entry.strip():
+                raise IgnoreError(f"{IGNORE_FILE}: `repos` holds a blank entry")
+            named[entry.strip().lower()] = None
+            continue
+        if not isinstance(entry, dict):
+            raise IgnoreError(f"{IGNORE_FILE}: `repos` entry {entry!r} is neither a "
+                              "name nor a `name:` / `reason:` mapping")
+        unknown = set(entry) - REPO_KEYS
+        if unknown:
+            raise IgnoreError(f"{IGNORE_FILE}: `repos` entry {entry!r} has unknown key "
+                              f"{', '.join(sorted(unknown))!r}, expected one of "
+                              f"{', '.join(sorted(REPO_KEYS))}")
+        name = entry.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise IgnoreError(f"{IGNORE_FILE}: `repos` entry {entry!r} needs a `name`")
+        reason = entry.get("reason")
+        if reason is not None and (not isinstance(reason, str) or not reason.strip()):
+            raise IgnoreError(f"{IGNORE_FILE}: `reason` for `{name}` takes a phrase, "
+                              "which is what the scope line groups it under")
+        named[name.strip().lower()] = reason.strip() if reason else None
+    return named
 
 
 def load_ignore(enabled=True):
@@ -100,7 +136,8 @@ def load_ignore(enabled=True):
     repos = parsed.get("repos") or []
     if not isinstance(repos, list):
         raise IgnoreError(f"{IGNORE_FILE}: `repos` takes a list of `- name` entries")
-    return Ignore(archived=states["archived"], forks=states["forks"], names=repos)
+    return Ignore(archived=states["archived"], forks=states["forks"],
+                  names=repo_names(repos))
 
 
 class GhError(RuntimeError):

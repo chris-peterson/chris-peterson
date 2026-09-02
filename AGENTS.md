@@ -190,8 +190,8 @@ reach the section that asked for it and leave the rest of the report alone.
 
 ## ignore.yml
 
-`ignore.yml` names what a scan skips, so a repo you have stopped caring about
-stops costing API calls on every run. Both scripts read it from their own
+`ignore.yml` names what a scan skips, so a repo you are done working in stops
+costing API calls on every run. Both scripts read it from their own
 directory rather than the working directory, and `--no-ignore` scans everything
 anyway.
 
@@ -199,14 +199,27 @@ anyway.
 archived: true      # skip archived repos
 forks: true         # skip forks
 repos:              # skipped by name, whatever their state
-  - home-tech
+  - name: home-tech
+    reason: personal
+  - name: logbook
+    reason: maintenance
+  - name: moor
+    reason: maintenance
 ```
 
+A `repos:` entry is either a bare name or a `name:` / `reason:` mapping. The
+reason is free text and decides one thing: which bucket the `scope:` line
+reports the repo under, so several projects skipped for the same cause read as
+a group rather than as a list of unexplained names. An entry that gives no
+reason reports under the file itself, and `--no-ignore` is what widens a run
+past every name whatever its reason.
+
 Each script loads it with `yaml.safe_load` and then **rejects anything the two
-keys don't cover**, down to an unrecognized key: a line dropped in silence
-would widen a scan without saying so, which is the one failure an ignore list
-cannot have. Both scripts carry their own copy of that loader, so a change to
-one belongs in the other too.
+keys don't cover**, down to an unrecognized key — inside a `repos:` entry as
+much as at the top level: a line dropped in silence would widen a scan without
+saying so, which is the one failure an ignore list cannot have. Both scripts
+carry their own copy of that loader, so a change to one belongs in the other
+too.
 
 Where the two disagree, the more specific instruction wins:
 `repo-status.py --repo home-tech` probes an ignored repo because you named it,

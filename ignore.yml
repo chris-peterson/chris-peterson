@@ -2,4 +2,9 @@ archived: true
 forks: true
 
 repos:
-  - home-tech
+  - name: home-tech
+    reason: personal
+  - name: logbook
+    reason: maintenance
+  - name: moor
+    reason: maintenance
