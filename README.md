@@ -138,10 +138,6 @@
     <td>Coding sessions turned into retros, committed to a team repo</td>
   </tr>
   <tr>
-    <td><a href="https://chris-peterson.github.io/fairlead/#/"><img alt="fairlead" src="https://img.shields.io/badge/fairlead-343746?style=flat-square"></a></td>
-    <td>Plugins react to each other's facts without naming each other</td>
-  </tr>
-  <tr>
     <td><a href="https://github.com/chris-peterson/pinpoint"><img alt="pinpoint" src="https://img.shields.io/badge/pinpoint-343746?style=flat-square"></a></td>
     <td>Tag your files and let the directory tree follow</td>
   </tr>
