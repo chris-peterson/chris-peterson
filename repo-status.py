@@ -1627,52 +1627,40 @@ PAGE_TEMPLATE = r"""<!doctype html>
 <style>
   :root {
     color-scheme: light;
-    --plane:        #f9f9f7;
-    --surface:      #fcfcfb;
-    --ink:          #0b0b0b;
-    --ink-2:        #52514e;
-    --muted:        #898781;
-    --grid:         #e1e0d9;
-    --axis:         #c3c2b7;
-    --hairline:     rgba(11,11,11,0.10);
-    --empty:        #edece6;
-    --risk:         #eb6834;
-    --warn:         #eda100;
-    --ok:           #1baf7a;
-    --shadow:       0 1px 2px rgba(11,11,11,0.05);
+    --plane:    #f9f9f7;
+    --surface:  #fcfcfb;
+    --ink:      #0b0b0b;
+    --ink-2:    #52514e;
+    --muted:    #898781;
+    --grid:     #e1e0d9;
+    --axis:     #c3c2b7;
+    --block:    #edece6;
+    --risk:     #eb6834;
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --plane:        #0d0d0d;
-    --surface:      #1a1a19;
-    --ink:          #ffffff;
-    --ink-2:        #c3c2b7;
-    --muted:        #898781;
-    --grid:         #2c2c2a;
-    --axis:         #383835;
-    --hairline:     rgba(255,255,255,0.10);
-    --empty:        #262624;
-    --risk:         #d95926;
-    --warn:         #c98500;
-    --ok:           #199e70;
-    --shadow:       none;
+    --plane:    #0d0d0d;
+    --surface:  #1a1a19;
+    --ink:      #ffffff;
+    --ink-2:    #c3c2b7;
+    --muted:    #898781;
+    --grid:     #2c2c2a;
+    --axis:     #383835;
+    --block:    #1f1f1d;
+    --risk:     #e0713f;
   }
   @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) {
       color-scheme: dark;
-      --plane:        #0d0d0d;
-      --surface:      #1a1a19;
-      --ink:          #ffffff;
-      --ink-2:        #c3c2b7;
-      --muted:        #898781;
-      --grid:         #2c2c2a;
-      --axis:         #383835;
-      --hairline:     rgba(255,255,255,0.10);
-      --empty:        #262624;
-      --risk:         #d95926;
-      --warn:         #c98500;
-      --ok:           #199e70;
-      --shadow:       none;
+      --plane:    #0d0d0d;
+      --surface:  #1a1a19;
+      --ink:      #ffffff;
+      --ink-2:    #c3c2b7;
+      --muted:    #898781;
+      --grid:     #2c2c2a;
+      --axis:     #383835;
+      --block:    #1f1f1d;
+      --risk:     #e0713f;
     }
   }
 
@@ -1681,154 +1669,134 @@ PAGE_TEMPLATE = r"""<!doctype html>
     margin: 0;
     background: var(--plane);
     color: var(--ink);
-    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
-  .page { max-width: 1180px; margin: 0 auto; padding: 32px 20px 64px; }
-
-  header.top { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-  h1 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
-  .sub { color: var(--muted); font-size: 13px; }
+  .page { max-width: 1040px; margin: 0 auto; padding: 26px 20px 80px; }
   .spacer { flex: 1 1 auto; }
-  button.ghost {
-    font: inherit; font-size: 12px; color: var(--ink-2); cursor: pointer;
-    background: var(--surface); border: 1px solid var(--hairline);
-    border-radius: 6px; padding: 5px 10px;
-  }
-  button.ghost:hover { color: var(--ink); }
-  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+  [hidden] { display: none !important; }
 
-  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 20px 0 18px; }
-  .kpi {
-    background: var(--surface); border: 1px solid var(--hairline);
-    border-radius: 10px; padding: 12px 14px; box-shadow: var(--shadow);
+  button {
+    font: inherit; color: var(--ink-2); background: none; cursor: pointer;
+    border: 1px solid var(--axis); border-radius: 2px; padding: 3px 7px; font-size: 12px;
   }
-  .kpi .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
-  .kpi .value { font-size: 26px; font-weight: 600; margin-top: 2px; letter-spacing: -0.02em; }
-  .kpi .note { color: var(--ink-2); font-size: 12px; }
-  .kpi.risk .value { color: var(--risk); }
+  button:hover:not(:disabled) { color: var(--ink); border-color: var(--ink-2); }
+  button:disabled { color: var(--muted); border-color: var(--grid); cursor: default; }
+
+  h1 { font-size: 14px; font-weight: 600; margin: 0; }
+  .stamp { color: var(--muted); font-size: 12px; margin-top: 3px; }
+  header.top { display: flex; align-items: baseline; gap: 12px; }
+
+  /* One line of figures instead of tiles: the counts are context for the
+     worklist, not the thing you came to read. */
+  .totals { display: flex; flex-wrap: wrap; gap: 4px 20px; margin: 14px 0 0; }
+  .totals span { color: var(--muted); font-size: 12px; }
+  .totals b {
+    color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums;
+    margin-right: 5px;
+  }
+  .totals .risk b { color: var(--risk); }
 
   /* The run-order rail. The eight sections print in the order the work gets
      done, so the ordinal is information: it is the sequence, not decoration. */
   .rail {
-    display: flex; flex-wrap: wrap; gap: 6px;
-    padding: 10px 12px; margin-bottom: 12px;
-    background: var(--surface); border: 1px solid var(--hairline);
-    border-radius: 10px; box-shadow: var(--shadow);
+    display: flex; flex-wrap: wrap; gap: 2px 16px;
+    padding: 10px 0; margin-top: 14px; border-top: 1px solid var(--grid);
   }
   .rail a {
-    display: flex; align-items: center; gap: 7px; text-decoration: none;
-    padding: 5px 9px; border-radius: 7px; border: 1px solid transparent;
-    color: var(--ink-2); font-size: 12.5px;
+    display: flex; align-items: baseline; gap: 6px;
+    color: var(--ink-2); font-size: 12px; text-decoration: none;
   }
-  .rail a:hover { border-color: var(--hairline); background: var(--plane); color: var(--ink); }
+  .rail a:hover { color: var(--ink); }
   .rail a.off { color: var(--muted); }
-  .rail .ord { font-size: 10.5px; color: var(--muted); letter-spacing: 0.04em; }
-  .rail .badge {
-    font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 20px;
-    background: var(--empty); color: var(--ink-2);
-    font-variant-numeric: tabular-nums;
-  }
-  .rail .badge.risk { background: var(--risk); color: #fff; }
-  .rail .badge.warn { background: var(--warn); color: #1a1400; }
-  .rail .badge.ok   { background: transparent; color: var(--ok); padding-left: 0; }
+  .rail .ord { color: var(--muted); font-size: 11px; }
+  .rail .badge { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .rail .badge.risk { color: var(--risk); }
 
-  .filters {
-    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px 18px;
-    padding: 12px 14px; margin-bottom: 18px;
-    background: var(--surface); border: 1px solid var(--hairline); border-radius: 10px;
+  .bar {
+    position: sticky; top: 0; z-index: 2;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+    padding: 9px 0; margin-bottom: 6px; background: var(--plane);
+    border-top: 1px solid var(--grid); border-bottom: 1px solid var(--grid);
   }
-  .field { display: flex; flex-direction: column; gap: 4px; }
-  .field > span { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .bar label { color: var(--muted); font-size: 12px; }
   select, input[type="search"] {
-    font: inherit; font-size: 13px; color: var(--ink); background: var(--surface);
-    border: 1px solid var(--axis); border-radius: 6px; padding: 5px 8px; min-width: 200px;
+    font: inherit; font-size: 12px; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--axis); border-radius: 2px; padding: 3px 6px;
   }
-
-  .card {
-    background: var(--surface); border: 1px solid var(--hairline);
-    border-radius: 10px; padding: 16px 18px 18px; margin-bottom: 18px; box-shadow: var(--shadow);
-  }
-  .card h2 { font-size: 15px; font-weight: 600; margin: 0; }
-  .card .caption {
-    display: block; color: var(--muted); font-size: 12px; margin: 2px 0 0; max-width: 70ch;
-  }
+  input[type="search"] { min-width: 190px; }
 
   /* A <details> carries the disclosure semantics and keyboard handling that an
-     ARIA-wired div would have to reimplement. */
-  .sect { padding: 0; }
+     ARIA-wired div would have to reimplement, at both levels. */
+  /* The toolbar is sticky, so a jump from the rail has to clear it. */
+  .sect { border-bottom: 1px solid var(--grid); scroll-margin-top: 46px; }
   .sect-head {
-    display: grid; align-items: baseline; gap: 2px 12px; cursor: pointer;
-    grid-template-columns: auto 1fr auto auto;
-    grid-template-areas: "ord title tally caret" "ord caption caption caption";
-    padding: 15px 18px 14px; list-style: none; border-radius: 10px;
+    display: grid; align-items: baseline; gap: 1px 10px; cursor: pointer;
+    grid-template-columns: auto auto 1fr auto;
+    grid-template-areas: "mark ord title tally" ". . caption caption";
+    padding: 12px 2px; list-style: none;
   }
   .sect-head::-webkit-details-marker { display: none; }
-  .sect-head:hover { background: var(--plane); }
-  .sect-head:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
-  .sect-head .ord {
-    grid-area: ord; font-size: 11px; color: var(--muted); letter-spacing: 0.08em;
+  .sect-head:hover { color: var(--ink); }
+  .sect-head .mark { grid-area: mark; }
+  .sect-head .ord { grid-area: ord; font-size: 11px; color: var(--muted); }
+  .sect-head h2 { grid-area: title; font-size: 13px; font-weight: 600; margin: 0; }
+  .sect-head .caption {
+    grid-area: caption; color: var(--muted); font-size: 12px; max-width: 78ch;
   }
-  .sect-head h2 { grid-area: title; }
-  .sect-head .caption { grid-area: caption; }
   .sect-head .tally {
-    grid-area: tally; font-size: 12px; font-weight: 600;
-    color: var(--muted); font-variant-numeric: tabular-nums;
+    grid-area: tally; color: var(--muted); font-size: 12px;
+    font-variant-numeric: tabular-nums;
   }
   .sect-head .tally.risk { color: var(--risk); }
-  .sect-head .tally.warn { color: var(--warn); }
-  .sect-head .tally.ok   { color: var(--ok); }
-  .sect-head .caret {
-    grid-area: caret; color: var(--muted); display: flex; align-items: center;
-    transform: rotate(0deg); transition: transform 140ms ease;
-  }
-  .sect[open] > .sect-head > .caret { transform: rotate(90deg); }
-  .sect-head:hover .caret { color: var(--ink-2); }
-  .sect-body { padding: 0 18px 18px; }
+  .sect-head .tally.work { color: var(--ink); }
+  .sect-body { padding: 0 0 14px 20px; }
 
-  .grp { margin-top: 16px; }
-  .grp-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
-  .grp-label {
-    font-size: 11px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.06em; color: var(--ink-2);
+  .mark {
+    flex: none; width: 10px; color: var(--axis); font-size: 10px; line-height: 1;
   }
-  .grp-note { font-size: 12px; color: var(--muted); }
-  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--axis); flex: none; }
-  .dot.risk { background: var(--risk); }
-  .dot.warn { background: var(--warn); }
-  .dot.ok   { background: var(--ok); }
+  summary:hover > .mark { color: var(--ink-2); }
+  .mark::before { content: "\25B8"; }
+  details[open] > summary > .mark::before { content: "\25BE"; }
+
+  .grp { margin-top: 12px; }
+  .grp-label { color: var(--ink-2); font-size: 12px; font-weight: 600; }
+  .grp-note { color: var(--muted); font-size: 12px; margin-left: 8px; }
 
   ul.items, ul.steps { list-style: none; margin: 0; padding: 0; }
-  .it { padding: 9px 0 10px; border-top: 1px solid var(--grid); }
-  .it:first-child { border-top: none; }
+  .it { border-top: 1px solid var(--grid); }
+  .grp-head + ul.items > .it:first-child { border-top: none; }
   /* Losable work earns a rule, not a wash of colour: the accent marks the row
      and the commands underneath stay the thing you read. */
-  .it.risk { border-left: 2px solid var(--risk); padding-left: 11px; margin-left: -13px; }
-  .it-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-  .it-name { font-size: 13.5px; font-weight: 600; color: var(--ink);
+  .it.risk { box-shadow: inset 2px 0 0 var(--risk); padding-left: 8px; }
+  .it-head {
+    display: flex; align-items: baseline; gap: 4px 8px; flex-wrap: wrap;
+    padding: 6px 0; list-style: none;
+  }
+  summary.it-head { cursor: pointer; }
+  summary.it-head::-webkit-details-marker { display: none; }
+  .it-name { font-size: 13px; font-weight: 600; color: var(--ink);
              text-decoration: none; overflow-wrap: anywhere; }
   a.it-name { border-bottom: 1px solid var(--axis); }
   a.it-name:hover { border-bottom-color: var(--ink); }
-  .it-meta { font-size: 13px; color: var(--ink-2); }
+  .it-meta { color: var(--ink-2); }
   .it.risk .it-meta { color: var(--risk); }
-  .it.ok .it-meta { color: var(--ok); }
-  .tag {
-    font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em;
-    color: var(--ink-2); background: var(--empty);
-    border-radius: 4px; padding: 1px 5px;
-  }
+  .tag { color: var(--muted); font-size: 11px; background: var(--block); padding: 0 4px; }
+  .it-acts { display: flex; gap: 6px; flex: none; }
+  .it-acts button { padding: 1px 5px; font-size: 11px; border-color: transparent; }
+  .it-head:hover .it-acts button, .it-acts button:focus-visible { border-color: var(--axis); }
+  /* Detail hangs under the name, clear of the disclosure mark. */
+  .it-body { padding: 0 0 8px 18px; }
 
-  .grp.dense ul.items { display: flex; flex-wrap: wrap; gap: 4px 6px; }
-  .grp.dense .it {
-    border: 1px solid var(--hairline); border-radius: 6px;
-    padding: 3px 8px; background: var(--plane);
-  }
-  .grp.dense .it-name { font-size: 12px; font-weight: 500; color: var(--ink-2); }
+  .grp.dense ul.items { display: flex; flex-wrap: wrap; gap: 2px 14px; }
+  .grp.dense .it { border-top: none; }
+  .grp.dense .it-head { padding: 2px 0; }
+  .grp.dense .it-name { font-weight: 400; color: var(--ink-2); }
 
-  .steps { margin-top: 5px; }
-  .st { font-size: 12.5px; color: var(--ink-2); padding: 2px 0; }
+  .st { color: var(--ink-2); font-size: 12px; padding: 1px 0; }
   .st a { display: block; color: inherit; text-decoration: none; }
-  .st .cells { display: flex; align-items: baseline; gap: 2px 10px; flex-wrap: wrap; }
+  .st .cells { display: flex; align-items: baseline; gap: 1px 10px; flex-wrap: wrap; }
   /* Branch and repo names are long unbreakable tokens; a flex child will not
      shrink past its content without this. */
   .st .cells > span { min-width: 0; overflow-wrap: anywhere; }
@@ -1837,58 +1805,42 @@ PAGE_TEMPLATE = r"""<!doctype html>
   .st a:hover .key { border-bottom-color: var(--ink); }
   .st .when { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
   .st .what { color: var(--ink-2); }
-  .st .dim { color: var(--muted); }
-  .st .warn { color: var(--warn); }
+  .st .dim, .st.mute { color: var(--muted); }
+  .st .warn, .st.warn { color: var(--ink); }
   .st.risk { color: var(--risk); }
-  .st.warn { color: var(--warn); }
-  .st.ok   { color: var(--ok); }
-  .st.mute { color: var(--muted); }
+  .st.ok { color: var(--muted); }
 
   /* The command is the payload: the terminal report's whole promise is that
      every actionable finding carries the exact line that settles it. */
-  .cmd {
-    display: flex; align-items: center; gap: 10px; width: 100%;
-    margin: 4px 0 2px; padding: 7px 10px; text-align: left;
+  .code {
+    display: flex; align-items: flex-start; gap: 10px;
+    margin: 3px 0 5px; padding: 6px 8px;
+    background: var(--block); border-left: 2px solid var(--axis);
+  }
+  .code pre {
+    flex: 1 1 auto; min-width: 0; margin: 0; overflow-x: auto;
     font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-    font-size: 12px; line-height: 1.45; color: var(--ink);
-    background: var(--empty); border: 1px solid transparent; border-radius: 7px;
-    cursor: pointer; user-select: text;
+    font-size: 12px; line-height: 1.5; color: var(--ink);
   }
-  .cmd:hover { border-color: var(--axis); }
-  .cmd .sigil { color: var(--muted); flex: none; user-select: none; }
-  .cmd .text { flex: 1 1 auto; min-width: 0; overflow-x: auto; white-space: pre; }
-  .cmd .act {
-    flex: none; font: inherit; font-size: 10.5px; text-transform: uppercase;
-    letter-spacing: 0.06em; color: var(--muted); user-select: none;
-  }
-  .cmd:hover .act { color: var(--ink-2); }
-  .cmd.done { border-color: var(--ok); }
-  .cmd.done .act { color: var(--ok); }
-  .cmd.failed { border-color: var(--risk); }
-  .cmd.failed .act { color: var(--risk); }
+  .code .copy { flex: none; border-color: transparent; padding: 1px 6px; font-size: 11px; }
+  .code:hover .copy, .code .copy:focus-visible { border-color: var(--axis); }
+  .code.done { border-left-color: var(--ink); }
+  .code.failed { border-left-color: var(--risk); }
+  .code .flag { flex: none; color: var(--muted); font-size: 11px; }
 
-  .clean { display: flex; align-items: center; gap: 8px; color: var(--ok); font-size: 13px; margin-top: 14px; }
-  .skipped { color: var(--muted); font-size: 13px; margin-top: 14px; }
-  .card.is-skipped { opacity: 0.55; }
-  .none { color: var(--muted); font-size: 13px; padding: 18px 0; text-align: center; }
-
-  .reveal { opacity: 0; transform: translateY(6px); animation: rise 380ms ease-out forwards; }
-  @keyframes rise { to { opacity: 1; transform: none; } }
-  @media (prefers-reduced-motion: reduce) {
-    .reveal { animation: none; opacity: 1; transform: none; }
-    .cmd, .rail a, .sect-head .caret { transition: none; }
+  .clean, .skipped, .none { color: var(--muted); font-size: 12px; padding-top: 10px; }
+  .put-back {
+    display: flex; align-items: baseline; gap: 8px;
+    color: var(--muted); font-size: 12px; padding-top: 10px;
   }
 
-  @media (max-width: 860px) {
-    .kpis { grid-template-columns: repeat(2, 1fr); }
-  }
-  /* A long tally crowds the title out of its own row before the card overflows. */
-  @media (max-width: 700px) {
+  @media (max-width: 640px) {
     .sect-head {
-      grid-template-columns: auto 1fr auto;
-      grid-template-areas: "ord title caret" "ord caption caption" "ord tally tally";
+      grid-template-columns: auto auto 1fr;
+      grid-template-areas: "mark ord title" ". . caption" ". . tally";
     }
-    .sect-head .tally { margin-top: 4px; }
+    .sect-body { padding-left: 8px; }
+    .bar { position: static; }
   }
 </style>
 </head>
@@ -1896,29 +1848,28 @@ PAGE_TEMPLATE = r"""<!doctype html>
 <div class="page">
   <header class="top">
     <h1 id="title"></h1>
-    <span class="sub" id="generated"></span>
     <span class="spacer"></span>
-    <button class="ghost" id="theme">Theme</button>
+    <button id="theme">Theme</button>
   </header>
+  <p class="stamp" id="generated"></p>
 
-  <section class="kpis" id="kpis"></section>
+  <div class="totals" id="totals"></div>
 
   <nav class="rail" id="rail" aria-label="Sections, in the order the work gets done"></nav>
 
-  <section class="filters">
-    <label class="field"><span>Show</span>
-      <select id="show">
-        <option value="findings">Findings only</option>
-        <option value="all">Everything</option>
-      </select>
-    </label>
-    <label class="field"><span>Filter</span>
-      <input type="search" id="q" placeholder="repo, branch, path">
-    </label>
+  <div class="bar">
+    <label for="show">Show</label>
+    <select id="show">
+      <option value="findings">Findings only</option>
+      <option value="all">Everything</option>
+    </select>
+    <label for="q">Filter</label>
+    <input type="search" id="q" placeholder="repo, branch, path">
     <span class="spacer"></span>
-    <button class="ghost" id="fold"></button>
-    <button class="ghost" id="copyall"></button>
-  </section>
+    <button id="fold"></button>
+    <button id="restore" hidden></button>
+    <button id="copyall"></button>
+  </div>
 
   <div id="sections"></div>
 </div>
@@ -1945,32 +1896,54 @@ const plural = (n, one, many) => n + ' ' + (n === 1 ? one : (many || one + 's'))
 const tally = (section, n) => plural(n, section.unit[0], section.unit[1]);
 const ordinal = i => String(i + 1).padStart(2, '0');
 
-/* A section's weight is the worst tone anything inside it carries: work that
-   only one disk holds outranks work that is merely piling up. */
+/* Dismissals and folds live in sessionStorage: the page is regenerated on every
+   run, so a row you set aside should outlast a scroll and nothing more. A
+   blocked or absent store is not an error — the page just starts fresh. */
+const STORE = 'repo-status:' + DATA.owner;
+let state = {dismissed: {}, shut: {}};
+try {
+  const saved = sessionStorage.getItem(STORE);
+  if (saved) state = Object.assign(state, JSON.parse(saved));
+} catch (err) { /* private window, or storage turned off */ }
+function remember() {
+  try { sessionStorage.setItem(STORE, JSON.stringify(state)); } catch (err) {}
+}
+function flag(bag, key, on) {
+  if (on) bag[key] = 1; else delete bag[key];
+  remember();
+}
+
+/* A <details> raises the same toggle event whether a person clicked it or the
+   filter opened it. Recording the value the page set is what tells the two
+   apart, so a search that opens a section does not rewrite what you folded. */
+function setOpen(node, open) {
+  node._auto = open;
+  node.open = open;
+}
+function folded(node, key) {
+  node.addEventListener('toggle', () => {
+    if (node._auto === node.open) return;
+    node._auto = node.open;
+    flag(state.shut, key, !node.open);
+  });
+}
+
+/* Every row and section the page drew, so counts, filtering and the copy list
+   all read one live index rather than the static payload. */
+const ROWS = [];
+const CARDS = [];
+
 const RANK = { risk: 3, warn: 2, ok: 1 };
-function sectionTone(section) {
-  let worst = null;
-  for (const group of section.groups.filter(g => !g.info)) {
-    for (const tone of [group.tone, ...group.items.flatMap(i => [i.tone, ...i.steps.map(s => s.tone)])]) {
-      if (tone && RANK[tone] > (RANK[worst] || 0)) worst = tone;
-    }
+function itemTone(group, it) {
+  let worst = group.tone || null;
+  for (const tone of [it.tone, ...it.steps.map(s => s.tone)]) {
+    if (tone && RANK[tone] > (RANK[worst] || 0)) worst = tone;
   }
   return worst;
 }
-/* Informational groups report context, not work, so they stay out of the count. */
-const countItems = section =>
-  section.groups.reduce((n, g) => n + (g.info ? 0 : g.items.length), 0);
-const actionable = section => section.groups.some(g => !g.info);
-function commandsIn(section, {advisory = true} = {}) {
-  const out = [];
-  for (const group of section.groups) {
-    for (const it of group.items) {
-      for (const st of it.steps) {
-        if (st.command && (advisory || !st.advisory)) out.push(st.command);
-      }
-      if (it.command) out.push(it.command);
-    }
-  }
+function commandsOf(it, {advisory = true} = {}) {
+  const out = it.steps.filter(s => s.command && (advisory || !s.advisory)).map(s => s.command);
+  if (it.command) out.push(it.command);
   return out;
 }
 
@@ -1983,34 +1956,40 @@ function haystack(it) {
     .filter(Boolean).join(' ').toLowerCase();
 }
 
-function commandBar(text) {
-  const bar = el('button', 'cmd');
-  bar.type = 'button';
-  bar.append(el('span', 'sigil', '$'), el('span', 'text', text), el('span', 'act', 'copy'));
-  bar.dataset.command = text;
-  bar.addEventListener('click', () => copy(text, bar));
-  return bar;
-}
-
-function copy(text, bar) {
+function copy(text, node, label) {
   navigator.clipboard.writeText(text).then(() => {
-    mark(bar, 'done', 'copied');
+    mark(node, 'done', 'copied', label);
   }, err => {
-    mark(bar, 'failed', 'select and copy');
+    mark(node, 'failed', 'copy failed', label);
     console.error('clipboard write failed', err);
   });
 }
 
-function mark(bar, cls, label) {
-  const act = bar.querySelector('.act');
-  bar.classList.remove('done', 'failed');
-  bar.classList.add(cls);
-  act.textContent = label;
-  clearTimeout(bar._reset);
-  bar._reset = setTimeout(() => {
-    bar.classList.remove('done', 'failed');
-    act.textContent = 'copy';
+function mark(node, cls, said, label) {
+  const button = node.matches('button') ? node : node.querySelector('button');
+  node.classList.remove('done', 'failed');
+  node.classList.add(cls);
+  button.textContent = said;
+  clearTimeout(node._reset);
+  node._reset = setTimeout(() => {
+    node.classList.remove('done', 'failed');
+    button.textContent = label;
   }, 2200);
+}
+
+function codeBlock(text, advisory) {
+  const box = el('div', 'code');
+  const pre = el('pre');
+  pre.append(el('code', null, text));
+  box.append(pre);
+  /* A command that takes you to the work rather than settling it stays out of
+     the copy-everything list, so the row says which kind it is. */
+  if (advisory) box.append(el('span', 'flag', 'advisory'));
+  const button = el('button', 'copy', 'copy');
+  button.type = 'button';
+  button.addEventListener('click', () => copy(text, box, 'copy'));
+  box.append(button);
+  return box;
 }
 
 function stepBody(st) {
@@ -2032,125 +2011,135 @@ function renderStep(st) {
   } else {
     li.append(stepBody(st));
   }
-  if (st.command) {
-    const wrap = el('div');
-    wrap.append(commandBar(st.command));
-    li.append(wrap);
-  }
+  if (st.command) li.append(codeBlock(st.command, st.advisory));
   return li;
 }
 
-function renderItem(it) {
-  const li = el('li', 'it' + (it.tone ? ' ' + it.tone : ''));
-  li.dataset.hay = haystack(it);
-  const head = el('div', 'it-head');
+function itemHead(it, key, tag) {
+  const head = el(tag, 'it-head');
+  if (tag === 'summary') head.append(el('span', 'mark'));
   if (it.url) {
     const a = el('a', 'it-name mono', it.name);
     a.href = it.url;
     a.target = '_blank';
     a.rel = 'noreferrer';
+    /* Inside a <summary> a plain link would fold the row on the way out. */
+    a.addEventListener('click', event => event.stopPropagation());
     head.append(a);
   } else {
     head.append(el('span', 'it-name mono', it.name));
   }
   if (it.meta) head.append(el('span', 'it-meta', it.meta));
-  for (const tag of it.tags) head.append(el('span', 'tag', tag));
-  li.append(head);
-  if (it.steps.length) {
-    const steps = el('ul', 'steps');
-    for (const st of it.steps) steps.append(renderStep(st));
-    li.append(steps);
+  for (const label of it.tags) head.append(el('span', 'tag', label));
+  head.append(el('span', 'spacer'));
+
+  const acts = el('span', 'it-acts');
+  const many = commandsOf(it, {advisory: false});
+  if (many.length > 1) {
+    const all = el('button', null, 'copy ' + many.length);
+    all.type = 'button';
+    all.title = 'Copy every command on this row';
+    all.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      copy(many.join('\n'), all, 'copy ' + many.length);
+    });
+    acts.append(all);
   }
-  if (it.command) li.append(commandBar(it.command));
+  const off = el('button', null, 'dismiss');
+  off.type = 'button';
+  off.title = 'Hide this row for the rest of the session';
+  off.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    flag(state.dismissed, key, true);
+    update();
+  });
+  acts.append(off);
+  head.append(acts);
+  return head;
+}
+
+function renderItem(it, group, key) {
+  const tone = itemTone(group, it);
+  const li = el('li', 'it' + (tone === 'risk' ? ' risk' : ''));
+  if (it.steps.length || it.command) {
+    const box = el('details');
+    setOpen(box, !state.shut[key]);
+    box.append(itemHead(it, key, 'summary'));
+    const wrap = el('div', 'it-body');
+    if (it.steps.length) {
+      const steps = el('ul', 'steps');
+      for (const st of it.steps) steps.append(renderStep(st));
+      wrap.append(steps);
+    }
+    if (it.command) wrap.append(codeBlock(it.command, false));
+    box.append(wrap);
+    folded(box, key);
+    li.append(box);
+  } else {
+    li.append(itemHead(it, key, 'div'));
+  }
+  li.dataset.hay = haystack(it);
   return li;
 }
 
-function renderGroup(group) {
+function renderGroup(group, section, gi) {
   const box = el('div', 'grp' + (group.dense ? ' dense' : ''));
   const head = el('div', 'grp-head');
-  head.append(el('span', 'dot' + (group.tone ? ' ' + group.tone : '')));
   head.append(el('span', 'grp-label', group.label));
   if (group.note) head.append(el('span', 'grp-note', group.note));
   box.append(head);
   const list = el('ul', 'items');
-  for (const it of group.items) list.append(renderItem(it));
+  group.items.forEach((it, ii) => {
+    const key = section.id + '/' + gi + '/' + ii;
+    const node = renderItem(it, group, key);
+    list.append(node);
+    ROWS.push({key, section, group, item: it, node,
+               hay: node.dataset.hay,
+               commands: commandsOf(it, {advisory: false})});
+  });
   box.append(list);
   return box;
 }
 
-function caret() {
-  const span = el('span', 'caret');
-  span.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">' +
-    '<path d="M3 1.5 L7 5 L3 8.5" fill="none" stroke="currentColor" ' +
-    'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  return span;
-}
-
 function renderSection(section, index) {
-  const card = el('details', 'card sect reveal');
+  const card = el('details', 'sect');
   card.id = 's-' + section.id;
-  card.dataset.id = section.id;
-  card.style.animationDelay = Math.min(index, 8) * 45 + 'ms';
 
   const head = el('summary', 'sect-head');
-  head.append(el('span', 'ord mono', ordinal(index)),
+  head.append(el('span', 'mark'), el('span', 'ord mono', ordinal(index)),
               el('h2', null, section.title),
-              el('span', 'caption', section.blurb));
-
-  const tone = sectionTone(section);
-  const count = countItems(section);
-  const badge = el('span', 'tally' + (section.skipped ? '' : count ? ' ' + (tone || '') : ' ok'));
-  badge.textContent = section.skipped ? 'skipped'
-    : count ? tally(section, count) : 'clear';
-  head.append(badge, caret());
+              el('span', 'tally'), el('span', 'caption', section.blurb));
   card.append(head);
-
-  /* A section opens when it has work in it. A clear or skipped one stays folded:
-     it is there to say it was checked, not to be read. */
-  const open = !section.skipped && count > 0;
-  card.open = open;
-  card.dataset.defaultOpen = String(open);
-
   const body = el('div', 'sect-body');
   card.append(body);
 
   if (section.skipped) {
-    card.classList.add('is-skipped');
     body.append(el('p', 'skipped', 'Not run — excluded by --only or --skip.'));
-    return card;
+  } else {
+    section.groups.forEach((group, gi) => body.append(renderGroup(group, section, gi)));
+    if (!section.groups.some(g => !g.info)) body.append(el('p', 'clean', section.clean));
+    body.append(el('p', 'none', 'Nothing matches this filter.'));
   }
-  if (!actionable(section)) {
-    const line = el('p', 'clean');
-    line.append(el('span', 'dot ok'), el('span', null, section.clean));
-    body.append(line);
-    for (const group of section.groups) body.append(renderGroup(group));
-    return card;
-  }
-  for (const group of section.groups) body.append(renderGroup(group));
-  body.append(el('p', 'none', 'Nothing matches this filter.'));
-  return card;
-}
 
-function renderKpis() {
-  const live = DATA.sections.filter(s => !s.skipped);
-  /* Only the uncommitted section measures work a dead disk would take: a
-     held-back branch is already one of its rows, so counting the tidy-up
-     section too would count the same commits twice. */
-  const atRisk = live.filter(s => s.id === 'uncommitted').reduce((n, s) => n + countItems(s), 0);
-  const commands = everyCommand().length;
-  const tiles = [
-    ['Projects', DATA.repos, 'owned on GitHub', false],
-    ['Clones', DATA.clones, DATA.root.replace(/^\/Users\/[^/]+/, '~'), false],
-    ['At risk', atRisk, 'held by one clone and nothing else', true],
-    ['Commands', commands, 'ready to paste', false],
-  ];
-  const box = document.getElementById('kpis');
-  tiles.forEach(([label, value, note, warnOnValue]) => {
-    const tile = el('div', 'kpi' + (warnOnValue && value ? ' risk' : ''));
-    tile.append(el('div', 'label', label), el('div', 'value', String(value)),
-                el('div', 'note', note));
-    box.append(tile);
+  const back = el('p', 'put-back');
+  const count = el('span');
+  const button = el('button', null, 'Put back');
+  button.type = 'button';
+  button.addEventListener('click', () => {
+    for (const row of ROWS) {
+      if (row.section.id === section.id) delete state.dismissed[row.key];
+    }
+    remember();
+    update();
   });
+  back.append(count, button);
+  body.append(back);
+
+  CARDS.push({section, card, head, body, back, count,
+              tally: head.querySelector('.tally')});
+  return card;
 }
 
 function renderRail() {
@@ -2158,114 +2147,147 @@ function renderRail() {
   DATA.sections.forEach((section, i) => {
     const a = el('a', section.skipped ? 'off' : null);
     a.href = '#s-' + section.id;
-    a.append(el('span', 'ord mono', ordinal(i)), el('span', 'nm', section.title));
-    const count = countItems(section);
-    const tone = sectionTone(section);
-    const badge = el('span', 'badge' + (section.skipped ? '' : count ? ' ' + (tone || '') : ' ok'));
-    badge.textContent = section.skipped ? 'skipped' : count ? String(count) : 'clear';
-    a.title = section.skipped ? 'Not run' : count ? tally(section, count) : section.clean;
-    a.append(badge);
+    a.append(el('span', 'ord mono', ordinal(i)), el('span', null, section.title),
+             el('span', 'badge'));
     rail.append(a);
+    const card = CARDS.find(c => c.section.id === section.id);
+    if (card) card.badge = a.querySelector('.badge');
   });
 }
 
-function applyFilter() {
+function renderTotals(figures) {
+  const box = document.getElementById('totals');
+  box.textContent = '';
+  for (const [value, label, risky] of figures) {
+    const span = el('span', risky && value ? 'risk' : null);
+    span.append(el('b', null, String(value)), document.createTextNode(label));
+    box.append(span);
+  }
+}
+
+/* One pass owns every derived number: a dismissal has to reach the tallies, the
+   rail, the totals and the copy list at once or the page contradicts itself. */
+function update() {
   const query = document.getElementById('q').value.trim().toLowerCase();
   const findingsOnly = document.getElementById('show').value === 'findings';
-  for (const card of document.querySelectorAll('.sect')) {
-    const section = DATA.sections.find(s => s.id === card.dataset.id);
-    let shown = 0;
-    for (const li of card.querySelectorAll('.it')) {
-      const hit = !query || li.dataset.hay.includes(query);
-      li.hidden = !hit;
-      if (hit) shown++;
+
+  for (const row of ROWS) {
+    row.gone = Boolean(state.dismissed[row.key]);
+    row.shown = !row.gone && (!query || row.hay.includes(query));
+    row.node.hidden = !row.shown;
+  }
+
+  let dismissed = 0;
+  let commands = [];
+  for (const card of CARDS) {
+    const mine = ROWS.filter(r => r.section.id === card.section.id);
+    const work = mine.filter(r => !r.group.info);
+    const live = work.filter(r => !r.gone).length;
+    const hidden = mine.filter(r => r.gone).length;
+    const shown = mine.filter(r => r.shown).length;
+    dismissed += hidden;
+    commands = commands.concat(mine.filter(r => !r.gone).flatMap(r => r.commands));
+
+    for (const grp of card.body.querySelectorAll('.grp')) {
+      grp.hidden = ![...grp.querySelectorAll('li.it')].some(node => !node.hidden);
     }
-    for (const grp of card.querySelectorAll('.grp')) {
-      grp.hidden = ![...grp.querySelectorAll('.it')].some(li => !li.hidden);
+    const empty = card.body.querySelector('.none');
+    if (empty) empty.hidden = shown > 0 || live === 0;
+    card.back.hidden = hidden === 0;
+    card.count.textContent = plural(hidden, 'row') + ' dismissed';
+
+    const tone = work.some(r => !r.gone && itemTone(r.group, r.item) === 'risk') ? 'risk' : '';
+    const said = card.section.skipped ? 'skipped'
+      : live ? tally(card.section, live) : 'clear';
+    card.tally.textContent = said;
+    card.tally.className = 'tally ' + (card.section.skipped ? '' : live ? (tone || 'work') : '');
+    if (card.badge) {
+      card.badge.textContent = card.section.skipped ? 'skipped' : live ? String(live) : 'clear';
+      card.badge.className = 'badge' + (tone && live ? ' risk' : '');
     }
-    const empty = card.querySelector('.none');
-    if (empty) empty.hidden = shown > 0;
-    const quiet = section.skipped || !section.groups.some(g => !g.info);
-    card.hidden = findingsOnly ? (quiet || shown === 0) : (query !== '' && shown === 0 && !quiet);
+
+    const quiet = card.section.skipped || work.length === 0;
+    card.card.hidden = findingsOnly ? (quiet || shown === 0) : (query !== '' && shown === 0 && !quiet);
     /* A match inside a folded section would otherwise be invisible; clearing the
        query hands every section back to the state it started in. */
-    if (query) {
-      if (shown > 0) card.open = true;
-    } else {
-      card.open = card.dataset.defaultOpen === 'true';
-    }
+    setOpen(card.card, query ? shown > 0 : !state.shut['sect/' + card.section.id]);
   }
-  syncFold();
-}
 
-function openSections() {
-  return [...document.querySelectorAll('.sect')].filter(c => !c.hidden && c.open);
-}
+  const atRisk = ROWS.filter(r => r.section.id === 'uncommitted' && !r.gone).length;
+  renderTotals([
+    [DATA.repos, 'projects', false],
+    [DATA.clones, 'clones on ' + DATA.root.replace(/^\/Users\/[^/]+/, '~'), false],
+    [atRisk, 'held by one clone', true],
+    [commands.length, 'commands ready', false],
+    ...(dismissed ? [[dismissed, 'dismissed', false]] : []),
+  ]);
 
-function syncFold() {
-  const cards = [...document.querySelectorAll('.sect')].filter(c => !c.hidden);
+  const copyall = document.getElementById('copyall');
+  copyall.textContent = 'Copy ' + plural(commands.length, 'command');
+  copyall.disabled = commands.length === 0;
+  copyall._commands = commands;
+
+  const restore = document.getElementById('restore');
+  restore.hidden = dismissed === 0;
+  restore.textContent = 'Put back ' + dismissed;
+
+  const open = CARDS.filter(c => !c.card.hidden && c.card.open).length;
   const fold = document.getElementById('fold');
-  fold.disabled = cards.length === 0;
-  fold.textContent = openSections().length ? 'Collapse all' : 'Expand all';
-}
-
-function everyCommand() {
-  return DATA.sections.filter(s => !s.skipped)
-    .flatMap(s => commandsIn(s, {advisory: false}));
+  fold.disabled = CARDS.every(c => c.card.hidden);
+  fold.textContent = open ? 'Collapse all' : 'Expand all';
 }
 
 function init() {
-  const owner = DATA.owner;
-  document.getElementById('title').textContent = owner + ' — repo status';
+  document.getElementById('title').textContent = DATA.owner + ' / repo status';
   document.getElementById('generated').textContent =
-    'read ' + new Date(DATA.generated).toLocaleString() +
-    ' · stale after ' + plural(DATA.stale_days, 'day', 'days');
-  renderKpis();
-  renderRail();
+    'read ' + new Date(DATA.generated).toLocaleString();
+
   const host = document.getElementById('sections');
-  DATA.sections.forEach((section, i) => host.append(renderSection(section, i)));
-
-  const all = everyCommand();
-  const copyall = document.getElementById('copyall');
-  copyall.textContent = 'Copy ' + plural(all.length, 'command', 'commands');
-  copyall.disabled = all.length === 0;
-  copyall.addEventListener('click', () => {
-    navigator.clipboard.writeText(all.join('\n')).then(() => {
-      copyall.textContent = 'Copied ' + plural(all.length, 'command', 'commands');
-      setTimeout(() => {
-        copyall.textContent = 'Copy ' + plural(all.length, 'command', 'commands');
-      }, 2200);
-    }, err => {
-      copyall.textContent = 'Clipboard refused';
-      console.error('clipboard write failed', err);
-    });
+  DATA.sections.forEach((section, i) => {
+    const card = renderSection(section, i);
+    host.append(card);
+    /* A section opens when it has work in it. A clear or skipped one stays
+       folded: it is there to say it was checked, not to be read. */
+    const work = section.groups.some(g => !g.info && g.items.length);
+    const key = 'sect/' + section.id;
+    if (!(key in state.shut) && !work) state.shut[key] = 1;
+    setOpen(card, !state.shut[key]);
+    folded(card, key);
+    card.addEventListener('toggle', update);
   });
+  renderRail();
 
-  document.getElementById('q').addEventListener('input', applyFilter);
-  document.getElementById('show').addEventListener('change', applyFilter);
-
+  document.getElementById('copyall').addEventListener('click', event => {
+    const button = event.currentTarget;
+    const label = 'Copy ' + plural(button._commands.length, 'command');
+    copy(button._commands.join('\n'), button, label);
+  });
+  document.getElementById('restore').addEventListener('click', () => {
+    state.dismissed = {};
+    remember();
+    update();
+  });
+  document.getElementById('q').addEventListener('input', update);
+  document.getElementById('show').addEventListener('change', update);
   document.getElementById('fold').addEventListener('click', () => {
-    const expand = openSections().length === 0;
-    for (const card of document.querySelectorAll('.sect')) {
-      if (!card.hidden) card.open = expand;
+    const expand = CARDS.filter(c => !c.card.hidden && c.card.open).length === 0;
+    for (const card of CARDS) {
+      if (!card.card.hidden) flag(state.shut, 'sect/' + card.section.id, !expand);
     }
-    syncFold();
+    update();
   });
-  host.addEventListener('toggle', syncFold, true);
 
   /* Jumping to a section from the rail has to open it, or the anchor lands on a
      folded header that shows nothing. */
   document.getElementById('rail').addEventListener('click', event => {
     const link = event.target.closest('a');
     if (!link) return;
-    const card = document.getElementById(link.hash.slice(1));
+    const card = CARDS.find(c => c.card.id === link.hash.slice(1));
     if (card) {
-      card.open = true;
-      syncFold();
+      flag(state.shut, 'sect/' + card.section.id, false);
+      update();
     }
   });
-
-  applyFilter();
 
   document.getElementById('theme').addEventListener('click', () => {
     const root = document.documentElement;
@@ -2273,6 +2295,8 @@ function init() {
     const now = root.dataset.theme || (dark ? 'dark' : 'light');
     root.dataset.theme = now === 'dark' ? 'light' : 'dark';
   });
+
+  update();
 }
 
 init();

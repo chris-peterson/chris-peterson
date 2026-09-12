@@ -135,13 +135,18 @@ Every run writes `output/repo-status.html` alongside the terminal report, and
 `--open` opens it. The findings are already gathered by the time the report
 prints, so the page costs a template rather than a flag. The page is
 self-contained — no CDN, no build step, no network at view time — and shares
-`repo-viz.html`'s tokens, cards and theme toggle, so the two read as one system.
+`repo-viz.html`'s palette and theme toggle.
+
+The chrome is kept out of the way: hairline rules rather than cards, one column,
+a line of figures rather than tiles, and the whole of it in 13px. What weight
+there is goes to the commands.
 
 Where the terminal prints a paste-ready command under each actionable finding,
-the page makes that command the heaviest element on the row and copies it on
-click. `Copy N commands` takes the whole run at once. A command that takes you
-to the work rather than settling it — the `cd` under a dirty tree — is marked
-`advisory` and stays out of that list while staying copyable on its own.
+the page sets that command as a code block, the heaviest element on the row, and
+copies it on click. A row carrying more than one takes them all at once with
+`copy N`, and `Copy N commands` takes the whole run. A command that takes you to
+the work rather than settling it — the `cd` under a dirty tree — is marked
+`advisory` and stays out of both lists while staying copyable on its own.
 
 The eight sections carry their run order as a numbered rail across the top,
 which doubles as jump-nav and as the count at a glance. Colour is spent on one
@@ -149,13 +154,27 @@ thing: a left rule marks work only one clone holds. Groups flagged `info`
 (clones filtered out of the run, clones of other owners) report context rather
 than work, so they stay out of every count the page presents as a finding.
 
-Each section is a `<details>`, so folding is the browser's own — keyboard
-handling and all — rather than ARIA wired by hand. A section opens when it has
-work in it and stays folded when it came back clear, which makes `Collapse all`
-a second reading of the same page: every section, its tally, and nothing else.
-A search opens the sections holding matches, since a hit inside a folded one
-would otherwise be invisible; clearing it hands every section back to the state
-it started in. Jumping from the rail opens its target for the same reason.
+Sections and rows are both `<details>`, so folding is the browser's own —
+keyboard handling and all — rather than ARIA wired by hand. A section opens when
+it has work in it and stays folded when it came back clear, which makes
+`Collapse all` a second reading of the same page: every section, its tally, and
+nothing else. A search opens the sections holding matches, since a hit inside a
+folded one would otherwise be invisible; clearing it hands every section back to
+the state it started in. Jumping from the rail opens its target for the same
+reason.
+
+A row you have dealt with is dismissed, and the tally, the rail, the figures at
+the top and the copy list all drop it in the same pass — a page that counted a
+row it no longer shows would be worth less than no count at all. `Put back`
+returns them, per section or for the run.
+
+Both foldings and the dismissals live in `sessionStorage`, keyed by owner: the
+page is rewritten on every run, so a row you set aside should outlast a scroll
+and a reload and nothing more. A blocked or absent store is not an error, the
+page just starts fresh. Since a `<details>` raises the same event whether a
+person clicked it or the filter opened it, the page records the value it set
+itself and ignores the event that follows, which is what keeps a search from
+rewriting what you folded.
 
 ### Adding a section
 
