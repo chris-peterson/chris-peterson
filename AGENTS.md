@@ -10,9 +10,12 @@
 | `repo-status.py` | A cross-repo dashboard and reconciler for every project under the account |
 | `repo-viz.py` | A one-page chart of where attention went across those projects, week by week |
 | `ignore.yml` | The repos a scan skips, read by both scripts |
+| `maturity.yml` | The bar every project is measured against, in cumulative tiers |
+| `maturity-history.yml` | Where each project's tier has been, appended to when one moves |
 | `output/` | Where both scripts write their pages. Gitignored. |
 | `requirements.txt` | PyYAML, the only dependency either script has |
 | `.claude/commands/` | `/repo-status` and `/repo-viz`, each a thin wrapper mapping free-form arguments onto the script's flags |
+| `.claude/skills/` | `ratchet` and `triage-alerts`, which close what the report only measures |
 
 ## repo-status.py
 
@@ -21,7 +24,7 @@ outside the standard library. Run it from anywhere; it defaults to the
 authenticated user and a clone tree at `~/src/github/<owner>`.
 
 ```bash
-./repo-status.py                          # all eight sections, read-only
+./repo-status.py                          # all ten sections, read-only
 ./repo-status.py --only uncommitted       # one section
 ./repo-status.py --skip issues --skip prs
 ./repo-status.py --fix                    # reconcile, prompting before each delete
@@ -30,15 +33,17 @@ authenticated user and a clone tree at `~/src/github/<owner>`.
 
 Sections print in a fixed order, each one independently selectable with
 `--only` / `--skip`: `reconcile`, `uncommitted`, `local-branches`,
-`orphan-branches`, `prs`, `unreleased`, `issues`, `behind`.
+`orphan-branches`, `prs`, `unreleased`, `issues`, `alerts`, `maturity`,
+`behind`.
 
 ### The order they print in
 
-The middle six run in the order the work gets done: find what only your disk
+The middle eight run in the order the work gets done: find what only your disk
 holds, delete the branches that have served their purpose, audit the open PRs,
-see what has piled up since the last release, then the issues. The two
-clone-tree housekeeping passes bracket them. `reconcile` leads because the rest
-of the run reads the tree it repairs — with `--fix` it moves and clones before
+see what has piled up since the last release, then the issues, then what the
+security feeds have turned up, then the standing bar every project is held to.
+The two clone-tree housekeeping passes bracket them. `reconcile` leads because
+the rest of the run reads the tree it repairs — with `--fix` it moves and clones before
 anything else probes. `behind` trails because a clone trailing origin costs
 nothing until you go to work in it, and `--fix` fast-forwards the clean ones
 without being asked.
@@ -83,6 +88,39 @@ Their clones stay in the local passes. `uncommitted` and `behind` still read a
 fork's clone, because work only your disk holds is worth reporting whatever the
 run's remote scope is. A repo named in `ignore.yml` is the exception: its clone
 drops out with it.
+
+### Maturity and alerts
+
+These two are the only sections that report on a project rather than on work
+queued against it, and neither writes. `--fix` passes them by: closing a
+maturity gap means turning on a setting or committing a file, and both belong
+with a person's judgement rather than inside a read-only sweep. The `ratchet`
+and `triage-alerts` skills are where that half lives.
+
+`maturity` measures every project against `maturity.yml` and reports the tier it
+has reached, the checks still open, and which of those block the next tier. A
+check that a single call settles prints that call; one that needs a commit
+prints nothing, which is how the page knows to mark it advisory and keep it out
+of the copy-all list.
+
+A check asks whether the thing works, not whether it is present. The one that
+makes the difference is `dependabot-config`: a config naming `github-actions`
+at any directory other than `/` parses, reads as configured on every dashboard,
+and matches no manifest, so the check rejects it and reports why.
+
+`alerts` reads the three security feeds and sorts by severity. A feed a repo has
+turned off answers 404, which is the disabled setting `maturity` already
+reports — so it counts as no alerts rather than as an error, and the same probe
+feeds the `no-open-alerts` check.
+
+### The ledger
+
+A `maturity` run appends to `maturity-history.yml`, and only where a project's
+tier or gap count actually moved — the file is a record of movement, not of
+runs. The bar is versioned into the same file beside it, because a tier that got
+harder to reach is what separates a project sliding back from one standing still
+under a raised bar. `--no-record` holds it back, which is what a single-repo run
+wants.
 
 ### Where a name takes you
 
@@ -148,7 +186,7 @@ copies it on click. A row carrying more than one takes them all at once with
 the work rather than settling it — the `cd` under a dirty tree — is marked
 `advisory` and stays out of both lists while staying copyable on its own.
 
-The eight sections carry their run order as a numbered rail across the top,
+The ten sections carry their run order as a numbered rail across the top,
 which doubles as jump-nav and as the count at a glance. Colour is spent on one
 thing: a left rule marks work only one clone holds. Groups flagged `info`
 (clones filtered out of the run, clones of other owners) report context rather
@@ -198,7 +236,7 @@ so a section cannot say one thing in the terminal and another on the page.
 nothing is printed and nothing is fixed.
 
 The page speaks in the same three levels for every section — `group`, `item`,
-`step` — so one renderer draws all eight. A step carries either `text` or
+`step` — so one renderer draws all ten. A step carries either `text` or
 `cells` (labelled spans that line up across rows), and optionally the command
 that settles it.
 
@@ -253,6 +291,45 @@ doesn't spend an API call classifying a clone whose repo it just filtered out.
 A held-back fork or archived repo keeps its clone but is recognized by name for
 the same reason — the call is what the holdback saves.
 Each script prints what it skipped.
+
+## maturity.yml
+
+`maturity.yml` is the bar. Tiers are cumulative and weakest first, so a project
+reaches `tended` only once it also clears `baseline`, and one name says how far
+along it is. Raising the bar is a single edit that re-measures every project at
+once, which is the whole point of keeping it out of the script.
+
+```yaml
+tiers:
+  baseline:
+    - dependabot-alerts
+    - description
+  tended:
+    - dependabot-config
+  hardened:
+    - active-ruleset
+
+exempt:
+  - name: <repo>
+    checks: [dependabot-config]
+    reason: no dependency manifests
+```
+
+The file names which checks sit in which tier and who is excused from what. The
+checks themselves live in `repo-status.py`'s `CHECKS`, which owns how each one
+is probed and the command that closes it — data here, behaviour there, so a new
+check is a code change and a new bar is an edit.
+
+An excused check counts as cleared, so a project excused from everything in a
+tier reaches it. Every exemption needs a `reason`, which is what it reports
+under: an exemption is the ratchet slipping, and it should read as a decision
+rather than as a silent pass.
+
+The loader **rejects anything the two keys don't cover** — an unknown key, an
+unknown tier, a check name no longer in `CHECKS`, a check claimed by two tiers.
+A check that fell out of the file in silence would lower the bar without saying
+so, which is the one failure a ratchet cannot have. `ignore.yml` refuses
+unrecognized input for the same reason, and the two loaders are separate.
 
 ## repo-viz.py
 

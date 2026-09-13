@@ -1,0 +1,37 @@
+# The bar every project is measured against. Tiers are cumulative: a repo
+# reaches `tended` only once it also clears `baseline`.
+#
+# The checks themselves are defined in repo-status.py, which owns how each one
+# is probed and the command that closes it. This file owns which checks are in
+# which tier, and who is excused from what.
+
+tiers:
+  baseline:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - secret-scanning
+    - push-protection
+    - description
+    - license
+
+  tended:
+    - dependabot-config
+    - code-scanning
+    - topics
+    - homepage
+    - pr-checks
+
+  hardened:
+    - active-ruleset
+    - no-open-alerts
+
+# Checks a repo is excused from, each with the reason it reports under. An
+# exempt check counts as cleared, so a repo excused from everything in a tier
+# reaches it.
+#
+# exempt:
+#   - name: chris-peterson.github.io
+#     checks: [dependabot-config]
+#     reason: no dependency manifests
+exempt: []

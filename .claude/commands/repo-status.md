@@ -12,13 +12,13 @@ Run `./repo-status.py` from the repo root with the flags below, then report what
 
 | What was typed | Flag |
 | --- | --- |
-| a section name (`reconcile`, `uncommitted`, `local-branches`, `orphan-branches`, `prs`, `unreleased`, `issues`, `behind`) | `--only <section>`, repeatable |
+| a section name (`reconcile`, `uncommitted`, `local-branches`, `orphan-branches`, `prs`, `unreleased`, `issues`, `alerts`, `maturity`, `behind`) | `--only <section>`, repeatable |
 | `no <section>`, `skip <section>` | `--skip <section>`, repeatable |
 | a bare repo name | `--repo <name>`, repeatable |
 | `page`, `html`, `chart`, `open it` | `--open` |
-| nothing | no flags: all eight sections, read-only |
+| nothing | no flags: all ten sections, read-only |
 
-A prefix that unambiguously names one section (`orphan`, `recon`, `prs`) resolves to it. One that matches several, like `branches` or `un`, is a question rather than a guess.
+A prefix that unambiguously names one section (`orphan`, `recon`, `mat`) resolves to it. One that matches several, like `branches` or `un`, is a question rather than a guess.
 
 ## What to report
 
@@ -31,6 +31,20 @@ Each section prints its own probe errors. A repo can answer some endpoints and 4
 Every run writes `output/repo-status.html` on top of the terminal report, and prints where it landed. `output/` is gitignored, so the default path is already the right one; pass `--out` only when a different one was asked for. `--open` opens it in a browser, which only helps when the run is in front of the user.
 
 The page carries the same findings the report does, each actionable one with the command that settles it, copied on click. Report the findings as above, and add where the page landed when the arguments asked for it.
+
+## Maturity and alerts
+
+`maturity` measures every project against the bar in `maturity.yml` and prints
+what each one needs to reach its next tier; `alerts` lists what the three
+security feeds have found. Neither writes to a repo — `--fix` does not touch
+them. Closing a maturity gap is the `ratchet` skill's job, and working an alert
+is `triage-alerts`; name the skill when reporting rather than running the
+commands here.
+
+A `maturity` run appends to `maturity-history.yml` wherever a project's tier or
+gap count moved, and prints those moves under `since the last recorded run`. A
+regression prints red. `--no-record` holds the ledger back, which is what a
+single-repo run wants — the file is meant to hold whole-account sweeps.
 
 ## --fix
 

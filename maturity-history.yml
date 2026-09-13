@@ -1,0 +1,345 @@
+bar:
+- date: '2026-09-13'
+  tiers:
+    baseline:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - secret-scanning
+    - push-protection
+    - description
+    - license
+    hardened:
+    - active-ruleset
+    - no-open-alerts
+    tended:
+    - dependabot-config
+    - code-scanning
+    - topics
+    - homepage
+    - pr-checks
+repos:
+  chris-peterson/ClaudeWatch:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - dependabot-config
+    - code-scanning
+    - active-ruleset
+    tier: unranked
+  chris-peterson/anchor:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-config
+    - active-ruleset
+    - no-open-alerts
+    tier: baseline
+  chris-peterson/assurance:
+  - date: '2026-09-13'
+    gaps:
+    - push-protection
+    - active-ruleset
+    tier: unranked
+  chris-peterson/beacon:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - dependabot-config
+    - code-scanning
+    - active-ruleset
+    tier: unranked
+  chris-peterson/chris-peterson:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - secret-scanning
+    - push-protection
+    - license
+    - dependabot-config
+    - code-scanning
+    - topics
+    - homepage
+    - pr-checks
+    - active-ruleset
+    tier: unranked
+  chris-peterson/chris-peterson.github.io:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - dependabot-config
+    - code-scanning
+    - topics
+    - pr-checks
+    - active-ruleset
+    tier: unranked
+  chris-peterson/claude-marketplace:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - dependabot-config
+    - code-scanning
+    - pr-checks
+    - active-ruleset
+    tier: unranked
+  chris-peterson/cleat:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - dependabot-config
+    - code-scanning
+    - active-ruleset
+    tier: unranked
+  chris-peterson/futility:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - secret-scanning
+    - push-protection
+    - dependabot-config
+    - code-scanning
+    - topics
+    - pr-checks
+    - active-ruleset
+    tier: unranked
+  chris-peterson/gitconfig:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - dependabot-config
+    - code-scanning
+    - topics
+    - pr-checks
+    - active-ruleset
+    tier: unranked
+  chris-peterson/kekiri:
+  - date: '2026-09-13'
+    gaps:
+    - private-reporting
+    - secret-scanning
+    - push-protection
+    - dependabot-config
+    - code-scanning
+    - pr-checks
+    - active-ruleset
+    tier: unranked
+  chris-peterson/mate:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - dependabot-config
+    - code-scanning
+    - topics
+    - homepage
+    - pr-checks
+    - active-ruleset
+    tier: unranked
+  chris-peterson/not-yet:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - secret-scanning
+    - push-protection
+    - description
+    - dependabot-config
+    - code-scanning
+    - topics
+    - homepage
+    - pr-checks
+    - active-ruleset
+    tier: unranked
+  chris-peterson/pinpoint:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - description
+    - license
+    - dependabot-config
+    - code-scanning
+    - topics
+    - pr-checks
+    - active-ruleset
+    tier: unranked
+  chris-peterson/publish-powershell:
+  - date: '2026-09-13'
+    gaps:
+    - security-updates
+    - private-reporting
+    - license
+    - dependabot-config
+    - code-scanning
+    - topics
+    - pr-checks
+    - active-ruleset
+    tier: unranked
+  chris-peterson/pwsh-artifactory:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - secret-scanning
+    - push-protection
+    - dependabot-config
+    - code-scanning
+    - pr-checks
+    - active-ruleset
+    tier: unranked
+  chris-peterson/pwsh-fmd:
+  - date: '2026-09-13'
+    gaps:
+    - security-updates
+    - private-reporting
+    - secret-scanning
+    - push-protection
+    - dependabot-config
+    - code-scanning
+    - active-ruleset
+    tier: unranked
+  chris-peterson/pwsh-forge:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-config
+    - topics
+    - active-ruleset
+    tier: baseline
+  chris-peterson/pwsh-github:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - dependabot-config
+    - code-scanning
+    - topics
+    - active-ruleset
+    tier: unranked
+  chris-peterson/pwsh-gitlab:
+  - date: '2026-09-13'
+    gaps:
+    - security-updates
+    - push-protection
+    - dependabot-config
+    - active-ruleset
+    tier: unranked
+  chris-peterson/pwsh-taglib:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - secret-scanning
+    - push-protection
+    - dependabot-config
+    - code-scanning
+    - pr-checks
+    - active-ruleset
+    tier: unranked
+  chris-peterson/pwsh-yelp:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - secret-scanning
+    - push-protection
+    - dependabot-config
+    - code-scanning
+    - topics
+    - pr-checks
+    - active-ruleset
+    tier: unranked
+  chris-peterson/rmq-cli:
+  - date: '2026-09-13'
+    gaps:
+    - security-updates
+    - private-reporting
+    - secret-scanning
+    - push-protection
+    - license
+    - code-scanning
+    - active-ruleset
+    tier: unranked
+  chris-peterson/sextant:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-config
+    - active-ruleset
+    tier: baseline
+  chris-peterson/shipshape:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - dependabot-config
+    - code-scanning
+    - active-ruleset
+    tier: unranked
+  chris-peterson/shipyard:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - license
+    - dependabot-config
+    - code-scanning
+    - active-ruleset
+    tier: unranked
+  chris-peterson/spiffy:
+  - date: '2026-09-13'
+    gaps:
+    - private-reporting
+    - secret-scanning
+    - push-protection
+    - dependabot-config
+    - code-scanning
+    - active-ruleset
+    tier: unranked
+  chris-peterson/tack:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - license
+    - dependabot-config
+    - code-scanning
+    - active-ruleset
+    tier: unranked
+  chris-peterson/virgo:
+  - date: '2026-09-13'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - secret-scanning
+    - push-protection
+    - dependabot-config
+    - code-scanning
+    - topics
+    - pr-checks
+    - active-ruleset
+    tier: unranked

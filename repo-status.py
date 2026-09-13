@@ -42,7 +42,7 @@ from datetime import datetime, timedelta, timezone
 import yaml
 
 SECTIONS = ["reconcile", "uncommitted", "local-branches", "orphan-branches",
-            "prs", "unreleased", "issues", "behind"]
+            "prs", "unreleased", "issues", "alerts", "maturity", "behind"]
 
 
 IGNORE_FILE = "ignore.yml"
@@ -152,6 +152,213 @@ def load_ignore(enabled=True):
         raise IgnoreError(f"{IGNORE_FILE}: `repos` takes a list of `- name` entries")
     return Ignore(archived=states["archived"], forks=states["forks"],
                   names=repo_names(repos))
+
+
+# --------------------------------------------------------------------------- #
+# the maturity bar
+# --------------------------------------------------------------------------- #
+
+MATURITY_FILE = "maturity.yml"
+MATURITY_KEYS = {"tiers", "exempt"}
+EXEMPT_KEYS = {"name", "checks", "reason"}
+
+# Cumulative and weakest first: a repo reaches a tier once it clears that tier's
+# checks and every tier before it, so one name says how far along a project is.
+TIERS = ["baseline", "tended", "hardened"]
+UNRANKED = "unranked"
+
+
+def patch_security(field):
+    return ("gh api -X PATCH repos/{repo} "
+            f"-f 'security_and_analysis[{field}][status]=enabled'")
+
+
+# Each check reads one already-probed value, and carries the command that closes
+# it where a single call can. A gap that needs a commit — a file in the tree, a
+# workflow, a license — has no such command: `fix` is None, and the ratchet
+# skill is what settles those.
+CHECKS = {
+    "dependabot-alerts": {
+        "label": "Dependabot alerts",
+        "read": lambda m: m["alerts_enabled"],
+        "fix": "gh api -X PUT repos/{repo}/vulnerability-alerts",
+    },
+    "security-updates": {
+        "label": "Dependabot security updates",
+        "read": lambda m: m["security_updates"],
+        "fix": "gh api -X PUT repos/{repo}/automated-security-fixes",
+    },
+    "private-reporting": {
+        "label": "Private vulnerability reporting",
+        "read": lambda m: m["private_reporting"],
+        "fix": "gh api -X PUT repos/{repo}/private-vulnerability-reporting",
+    },
+    "secret-scanning": {
+        "label": "Secret scanning",
+        "read": lambda m: m["secret_scanning"],
+        "fix": patch_security("secret_scanning"),
+    },
+    "push-protection": {
+        "label": "Push protection",
+        "read": lambda m: m["push_protection"],
+        "fix": patch_security("secret_scanning_push_protection"),
+    },
+    "description": {
+        "label": "Description",
+        "read": lambda m: m["description"],
+        "fix": "gh repo edit {repo} --description '<one line>'",
+    },
+    "license": {
+        "label": "License",
+        "read": lambda m: m["license"],
+        "fix": None,
+    },
+    "dependabot-config": {
+        "label": "Dependabot version updates",
+        "read": lambda m: m["dependabot_config"],
+        "note": lambda m: m["dependabot_note"],
+        "fix": None,
+    },
+    "code-scanning": {
+        "label": "Code scanning",
+        "read": lambda m: m["code_scanning"],
+        "fix": "gh api -X PATCH repos/{repo}/code-scanning/default-setup -f state=configured",
+    },
+    "topics": {
+        "label": "Topics",
+        "read": lambda m: m["topics"],
+        "fix": "gh repo edit {repo} --add-topic '<topic>'",
+    },
+    "homepage": {
+        "label": "Homepage",
+        "read": lambda m: m["homepage"],
+        "fix": "gh repo edit {repo} --homepage '<url>'",
+    },
+    "pr-checks": {
+        "label": "A workflow on pull requests",
+        "read": lambda m: m["pr_checks"],
+        "fix": None,
+    },
+    "active-ruleset": {
+        "label": "Active ruleset on the default branch",
+        "read": lambda m: m["ruleset"] and m["ruleset"]["active"] and m["ruleset"]["targets_default"],
+        "fix": None,
+    },
+    "no-open-alerts": {
+        "label": "No open security alerts",
+        "read": lambda m: not m["alert_total"],
+        "fix": None,
+    },
+}
+
+
+class MaturityError(RuntimeError):
+    pass
+
+
+class Maturity:
+    def __init__(self, tiers, exempt=()):
+        self.tiers = tiers
+        # {lowercased name: {check id: the reason it is excused}}
+        self.exempt = dict(exempt)
+
+    def checks(self):
+        """Every check the bar names, in tier order."""
+        return [c for tier in TIERS for c in self.tiers.get(tier, [])]
+
+    def excused(self, name, check):
+        return self.exempt.get((name or "").lower(), {}).get(check)
+
+    def rank(self, cleared):
+        """The highest tier whose checks — and every earlier tier's — are cleared."""
+        reached = UNRANKED
+        for tier in TIERS:
+            if not all(c in cleared for c in self.tiers.get(tier, [])):
+                return reached
+            reached = tier
+        return reached
+
+    def __bool__(self):
+        return any(self.tiers.get(t) for t in TIERS)
+
+
+def exempt_entries(entries):
+    """Read `exempt:` into {name: {check: reason}}."""
+    out = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise MaturityError(f"{MATURITY_FILE}: `exempt` entry {entry!r} takes a "
+                                "`name:` / `checks:` / `reason:` mapping")
+        unknown = set(entry) - EXEMPT_KEYS
+        if unknown:
+            raise MaturityError(f"{MATURITY_FILE}: `exempt` entry {entry!r} has unknown key "
+                                f"{', '.join(sorted(unknown))!r}, expected one of "
+                                f"{', '.join(sorted(EXEMPT_KEYS))}")
+        name = entry.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise MaturityError(f"{MATURITY_FILE}: `exempt` entry {entry!r} needs a `name`")
+        checks = entry.get("checks") or []
+        if not isinstance(checks, list) or not checks:
+            raise MaturityError(f"{MATURITY_FILE}: `checks` for `{name}` takes a list of "
+                                "check names")
+        reason = entry.get("reason")
+        if not isinstance(reason, str) or not reason.strip():
+            raise MaturityError(f"{MATURITY_FILE}: `{name}` needs a `reason`, which is what "
+                                "an excused check reports under")
+        for check in checks:
+            if check not in CHECKS:
+                raise MaturityError(f"{MATURITY_FILE}: `{name}` excuses unknown check "
+                                    f"{check!r}, expected one of "
+                                    f"{', '.join(sorted(CHECKS))}")
+        out.setdefault(name.strip().lower(), {}).update(
+            {c: reason.strip() for c in checks})
+    return out
+
+
+def load_maturity():
+    """Read the bar, from the script's directory rather than the caller's."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), MATURITY_FILE)
+    if not os.path.exists(path):
+        return Maturity({})
+    with open(path, encoding="utf-8") as handle:
+        try:
+            parsed = yaml.safe_load(handle) or {}
+        except yaml.YAMLError as err:
+            raise MaturityError(f"{MATURITY_FILE}: {err}") from err
+    if not isinstance(parsed, dict):
+        raise MaturityError(f"{MATURITY_FILE}: expected `key: value` entries")
+    # A check that fell out of the file in silence would lower the bar without
+    # saying so, which is the one failure a ratchet cannot have.
+    unknown = set(parsed) - MATURITY_KEYS
+    if unknown:
+        raise MaturityError(f"{MATURITY_FILE}: unknown key {', '.join(sorted(unknown))!r}, "
+                            f"expected one of {', '.join(sorted(MATURITY_KEYS))}")
+    tiers = parsed.get("tiers") or {}
+    if not isinstance(tiers, dict):
+        raise MaturityError(f"{MATURITY_FILE}: `tiers` takes one list of checks per tier")
+    stray = set(tiers) - set(TIERS)
+    if stray:
+        raise MaturityError(f"{MATURITY_FILE}: unknown tier {', '.join(sorted(stray))!r}, "
+                            f"expected one of {', '.join(TIERS)}")
+    seen = set()
+    for tier in TIERS:
+        named = tiers.get(tier) or []
+        if not isinstance(named, list):
+            raise MaturityError(f"{MATURITY_FILE}: `{tier}` takes a list of check names")
+        for check in named:
+            if check not in CHECKS:
+                raise MaturityError(f"{MATURITY_FILE}: `{tier}` names unknown check "
+                                    f"{check!r}, expected one of "
+                                    f"{', '.join(sorted(CHECKS))}")
+            if check in seen:
+                raise MaturityError(f"{MATURITY_FILE}: `{check}` is named by two tiers; "
+                                    "a cumulative bar reads it once")
+            seen.add(check)
+        tiers[tier] = named
+    exempt = parsed.get("exempt") or []
+    if not isinstance(exempt, list):
+        raise MaturityError(f"{MATURITY_FILE}: `exempt` takes a list of entries")
+    return Maturity(tiers, exempt_entries(exempt))
 
 
 class GhError(RuntimeError):
@@ -273,7 +480,8 @@ def find_clones(root, depth):
 
 def list_repos(owner, limit):
     args = ["repo", "list", owner, "--limit", str(limit), "--json",
-            "name,owner,defaultBranchRef,isPrivate,isFork,isArchived,pushedAt,url,sshUrl"]
+            "name,owner,defaultBranchRef,isPrivate,isFork,isArchived,pushedAt,url,sshUrl,"
+            "description,homepageUrl,licenseInfo,repositoryTopics"]
     return json.loads(gh(args))
 
 
@@ -297,6 +505,10 @@ def repo_record(full):
         "pushedAt": info["pushed_at"],
         "url": info["html_url"],
         "sshUrl": info["ssh_url"],
+        "description": info.get("description"),
+        "homepageUrl": info.get("homepage"),
+        "licenseInfo": info.get("license"),
+        "repositoryTopics": [{"name": t} for t in info.get("topics") or []],
     }
 
 
@@ -457,6 +669,158 @@ def open_issues(full_name):
     return out
 
 
+MATURITY_QUERY = """
+query($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    dependabot: object(expression: "HEAD:.github/dependabot.yml") { ... on Blob { text } }
+    workflows: object(expression: "HEAD:.github/workflows") {
+      ... on Tree { entries { name object { ... on Blob { text } } } }
+    }
+  }
+}
+"""
+
+ON_LIST = re.compile(r"^on\s*:\s*(?:\[([^\]]*)\]|(\S+)\s*$)", re.M)
+PR_KEY = re.compile(r"^\s{1,8}pull_request(_target)?\s*:", re.M)
+
+
+def runs_on_pull_request(text):
+    """Whether a workflow's `on:` names a pull_request trigger, in any of its spellings."""
+    if not text:
+        return False
+    inline = ON_LIST.search(text)
+    if inline and "pull_request" in (inline.group(1) or inline.group(2) or ""):
+        return True
+    return bool(PR_KEY.search(text))
+
+
+def gh_flag(path):
+    """A GET that answers 204 when the setting is on and 404 when it is off."""
+    proc = subprocess.run(["gh", "api", path], capture_output=True, text=True)
+    if proc.returncode == 0:
+        return True
+    if "HTTP 404" in proc.stderr or "Not Found" in proc.stderr:
+        return False
+    raise GhError(proc.stderr.strip() or f"gh exited {proc.returncode}")
+
+
+def default_ruleset(full_name, default_branch):
+    """The repo's own branch ruleset covering the default branch, or None.
+
+    A ruleset that exists but is switched off protects nothing, and one whose
+    conditions name no ref targets nothing even when it is on, so both travel
+    with it rather than collapsing into a yes."""
+    listed = gh_json(f"repos/{full_name}/rulesets")
+    for entry in listed:
+        if entry.get("target") != "branch":
+            continue
+        active = entry.get("enforcement") == "active"
+        targets = True
+        if active:
+            detail = gh_json(f"repos/{full_name}/rulesets/{entry['id']}")
+            include = ((detail.get("conditions") or {}).get("ref_name") or {}).get("include") or []
+            targets = any(ref in ("~ALL", "~DEFAULT_BRANCH",
+                                  f"refs/heads/{default_branch}") for ref in include)
+        return {"id": entry["id"], "name": entry.get("name"),
+                "active": active, "targets_default": targets}
+    return None
+
+
+def dependabot_problems(text):
+    """Why a dependabot config won't do what it looks like it does, if anything.
+
+    A config that parses but points an ecosystem at the wrong directory is worse
+    than none — it reads as done on every dashboard while updating nothing — so
+    the bar asks whether it reaches the manifests, not whether the file is there."""
+    try:
+        parsed = yaml.safe_load(text) or {}
+    except yaml.YAMLError as err:
+        return [f"does not parse: {err}"]
+    if not isinstance(parsed, dict):
+        return ["is not a mapping"]
+    updates = parsed.get("updates")
+    if not isinstance(updates, list) or not updates:
+        return ["names no `updates`"]
+    problems = []
+    for entry in updates:
+        if not isinstance(entry, dict):
+            continue
+        where = entry.get("directories") or entry.get("directory")
+        paths = where if isinstance(where, list) else [where]
+        # Dependabot reaches .github/workflows from the root and nowhere else,
+        # so a config rooted at .github matches no manifest at all.
+        if entry.get("package-ecosystem") == "github-actions" and "/" not in paths:
+            problems.append(f'github-actions needs directory "/" to reach '
+                            f'.github/workflows, not {where!r}')
+    return problems
+
+
+def probe_maturity(repo, full_name):
+    """The bar's remote half: the settings, the files in the tree, and the ruleset."""
+    info = gh_json(f"repos/{full_name}")
+    analysis = info.get("security_and_analysis") or {}
+
+    def on(key):
+        return (analysis.get(key) or {}).get("status") == "enabled"
+
+    data = gh_graphql(MATURITY_QUERY, owner=repo["owner"]["login"], name=repo["name"])
+    tree = (data.get("data") or {}).get("repository") or {}
+    workflows = [e for e in ((tree.get("workflows") or {}).get("entries") or [])
+                 if runs_on_pull_request(((e.get("object") or {}).get("text")))]
+    branch_ref = repo.get("defaultBranchRef") or {}
+    dependabot_text = (tree.get("dependabot") or {}).get("text")
+    dependabot_faults = dependabot_problems(dependabot_text) if dependabot_text else []
+
+    return {
+        "alerts_enabled": gh_flag(f"repos/{full_name}/vulnerability-alerts"),
+        "security_updates": bool(gh_json(
+            f"repos/{full_name}/automated-security-fixes").get("enabled")),
+        "private_reporting": bool(gh_json(
+            f"repos/{full_name}/private-vulnerability-reporting").get("enabled")),
+        "secret_scanning": on("secret_scanning"),
+        "push_protection": on("secret_scanning_push_protection"),
+        "code_scanning": gh_json(
+            f"repos/{full_name}/code-scanning/default-setup").get("state") == "configured",
+        "dependabot_config": bool(dependabot_text) and not dependabot_faults,
+        "dependabot_note": "; ".join(dependabot_faults),
+        "pr_checks": [e["name"] for e in workflows],
+        "ruleset": default_ruleset(full_name, branch_ref.get("name")),
+        "description": (repo.get("description") or "").strip(),
+        "license": ((repo.get("licenseInfo") or {}).get("key") or ""),
+        "topics": [t["name"] for t in repo.get("repositoryTopics") or []],
+        "homepage": (repo.get("homepageUrl") or "").strip(),
+    }
+
+
+ALERT_FEEDS = {
+    "dependabot": "dependabot/alerts",
+    "code-scanning": "code-scanning/alerts",
+    "secret-scanning": "secret-scanning/alerts",
+}
+
+
+def open_alerts(full_name):
+    """Open security alerts per feed.
+
+    A feed the repo has turned off is the disabled setting the maturity section
+    already reports, so it counts as no alerts rather than as an error. Any
+    other failure is raised: reporting a rate-limited feed as clear would be the
+    one wrong answer this section cannot give.
+
+    The feeds disagree on how they say it — secret scanning 404s, Dependabot
+    403s — so what is matched is the state they both name, not the status."""
+    found = {}
+    for label, path in ALERT_FEEDS.items():
+        try:
+            found[label] = gh_json(f"repos/{full_name}/{path}?state=open&per_page=100")
+        except GhError as err:
+            message = str(err)
+            if "disabled" not in message.lower() and "HTTP 404" not in message:
+                raise
+            found[label] = []
+    return found
+
+
 def probe_repo(repo, wanted, max_commits):
     full_name = f"{repo['owner']['login']}/{repo['name']}"
     branch_ref = repo.get("defaultBranchRef") or {}
@@ -484,6 +848,8 @@ def probe_repo(repo, wanted, max_commits):
         "issues": [],
         "branches": [],
         "branches_truncated": False,
+        "maturity": None,
+        "alerts": None,
         "errors": {},
     }
 
@@ -518,6 +884,15 @@ def probe_repo(repo, wanted, max_commits):
                 result["commits"] = list(reversed(diff["commits"]))[:max_commits]
                 result["truncated"] = diff["truncated"] or len(diff["commits"]) > max_commits
         attempt("unreleased", probe_unreleased)
+    # The hardened tier asks whether anything is outstanding, so the bar reads
+    # the same feed the alerts section does and neither probes it twice.
+    if wanted & {"maturity", "alerts"}:
+        result["alerts"] = attempt("alerts", lambda: open_alerts(full_name))
+    if "maturity" in wanted:
+        state = attempt("maturity", lambda: probe_maturity(repo, full_name))
+        if state is not None:
+            state["alert_total"] = sum(len(v) for v in (result["alerts"] or {}).values())
+            result["maturity"] = state
     return result
 
 
@@ -1175,6 +1550,237 @@ def section_issues(groups, broken):
                   + link(f"#{issue['number']}  {issue['title']}{labels}", issue["url"]))
 
 
+SEVERITIES = ["critical", "high", "medium", "moderate", "low", "warning", "note", "none"]
+
+
+def severity_rank(name):
+    key = (name or "none").lower()
+    return SEVERITIES.index(key) if key in SEVERITIES else len(SEVERITIES)
+
+
+def normalize_alert(feed, raw):
+    """One shape across three feeds that agree on nothing but a number and a URL."""
+    if feed == "dependabot":
+        advisory = raw.get("security_advisory") or {}
+        package = ((raw.get("dependency") or {}).get("package") or {}).get("name")
+        return {"severity": (raw.get("security_vulnerability") or {}).get("severity"),
+                "title": advisory.get("summary"), "detail": package}
+    if feed == "code-scanning":
+        rule = raw.get("rule") or {}
+        location = ((raw.get("most_recent_instance") or {}).get("location") or {})
+        return {"severity": rule.get("security_severity_level") or rule.get("severity"),
+                "title": rule.get("description") or rule.get("id"),
+                "detail": location.get("path")}
+    return {"severity": "high", "title": raw.get("secret_type_display_name")
+            or raw.get("secret_type"), "detail": raw.get("validity")}
+
+
+def collect_alerts(results):
+    """Every open security alert across the account, most severe first."""
+    broken = sorted((r for r in results if "alerts" in r["errors"]),
+                    key=lambda r: r["repo"].lower())
+    rows = []
+    for r in results:
+        for feed, raw_alerts in (r["alerts"] or {}).items():
+            for raw in raw_alerts:
+                alert = normalize_alert(feed, raw)
+                alert.update({"feed": feed, "number": raw.get("number"),
+                              "url": raw.get("html_url"),
+                              "created": raw.get("created_at")})
+                rows.append((r, alert))
+    rows.sort(key=lambda pair: (severity_rank(pair[1]["severity"]),
+                                pair[1]["created"] or "", pair[0]["repo"].lower()))
+    return rows, broken
+
+
+def section_alerts(rows, broken):
+    heading("OPEN SECURITY ALERTS", "most severe first")
+    if not rows and not broken:
+        print()
+        print("  none")
+        return
+    print()
+    for r in broken:
+        print(paint(f"  {r['repo']}: could not list alerts: {r['errors']['alerts']}", "31"))
+    for r, alert in rows:
+        tone = "31" if severity_rank(alert["severity"]) <= 1 else "33"
+        named = name_link(r["repo"], f"{r['url']}/security")
+        print(f"  {named}  " + paint(f"[{alert['severity'] or 'none'}] ", tone)
+              + link(f"{alert['feed']} #{alert['number']}  {alert['title']}", alert["url"]))
+        if alert["detail"]:
+            print(f"      {alert['detail']}  opened {fmt_date(alert['created'])} "
+                  f"({age_days(alert['created'])}d)")
+
+
+def next_tier(tier):
+    if tier == TIERS[-1]:
+        return None
+    return TIERS[0] if tier == UNRANKED else TIERS[TIERS.index(tier) + 1]
+
+
+def collect_maturity(results, bar):
+    """Each repo's tier, and the checks standing between it and the next one.
+
+    Every measured repo comes back, the ones at the bar included — the history
+    ledger records reaching it, which is the transition worth keeping."""
+    broken = sorted((r for r in results if "maturity" in r["errors"]),
+                    key=lambda r: r["repo"].lower())
+    rows = []
+    for r in results:
+        state = r["maturity"]
+        if not state:
+            continue
+        cleared, gaps, excused = [], [], []
+        for check in bar.checks():
+            reason = bar.excused(r["name"], check)
+            if reason:
+                cleared.append(check)
+                excused.append((check, reason))
+            elif CHECKS[check]["read"](state):
+                cleared.append(check)
+            else:
+                gaps.append(check)
+        tier = bar.rank(cleared)
+        upcoming = next_tier(tier)
+        rows.append({
+            "repo": r["repo"], "name": r["name"], "url": r["url"], "tier": tier,
+            "next": upcoming, "gaps": gaps, "excused": excused,
+            "blocking": [c for c in bar.tiers.get(upcoming, []) if c in gaps],
+            "state": state,
+        })
+    counts = {tier: sum(1 for row in rows if row["tier"] == tier)
+              for tier in [UNRANKED] + TIERS}
+    # Within a tier, the project needing least to be promoted leads: a ratchet
+    # is worked by clearing the next repo, not by staring at the worst one.
+    rows.sort(key=lambda row: (([UNRANKED] + TIERS).index(row["tier"]),
+                               len(row["blocking"]), len(row["gaps"]),
+                               row["repo"].lower()))
+    return rows, counts, broken
+
+
+def gap_command(row, check):
+    fix = CHECKS[check]["fix"]
+    return fix.format(repo=row["repo"]) if fix else None
+
+
+def gap_note(row, check):
+    """Why a check reads as a gap, where the state alone wouldn't say."""
+    note = CHECKS[check].get("note")
+    return note(row["state"]) if note else None
+
+
+def section_maturity(rows, counts, broken, bar, all_details=False):
+    heading("MATURITY", "each project against the bar, closest to its next tier first")
+    print()
+    print("  " + "  ".join(f"{tier}: {counts.get(tier, 0)}"
+                           for tier in [UNRANKED] + TIERS))
+    for r in broken:
+        print(paint(f"  {r['repo']}: could not be measured: "
+                    f"{r['errors']['maturity']}", "31"))
+    if not all_details:
+        rows = [row for row in rows if row["gaps"]]
+    if not rows:
+        print()
+        print("  every project is at the bar")
+        return
+    for row in rows:
+        reached = paint(row["tier"], "32" if row["tier"] == TIERS[-1] else "33")
+        toward = f" -> {row['next']}" if row["next"] else ""
+        print()
+        print(f"  {name_link(row['repo'], row['url'] + '/settings/security_analysis')}"
+              f"  {reached}{toward}  ({len(row['gaps'])} to go)")
+        for check in row["gaps"]:
+            mark = "*" if check in row["blocking"] else " "
+            print(f"    {mark} {CHECKS[check]['label']}")
+            note = gap_note(row, check)
+            if note:
+                print(paint(f"        {note}", "33"))
+            command = gap_command(row, check)
+            if command:
+                print(f"        {command}")
+        for check, reason in row["excused"]:
+            print(f"      {CHECKS[check]['label']} — excused: {reason}")
+    if any(row["blocking"] for row in rows):
+        print()
+        print("  * blocks the next tier")
+
+
+HISTORY_FILE = "maturity-history.yml"
+
+
+def load_history():
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), HISTORY_FILE)
+    if not os.path.exists(path):
+        return {"bar": [], "repos": {}}, path
+    with open(path, encoding="utf-8") as handle:
+        history = yaml.safe_load(handle) or {}
+    # A key present but empty reads back as None, which a bare setdefault keeps.
+    return {"bar": history.get("bar") or [],
+            "repos": history.get("repos") or {}}, path
+
+
+def record_history(rows, bar):
+    """Append what moved since the last run, and return it.
+
+    A row lands only when a project's tier or open checks change, so the file
+    stays a record of movement rather than of runs. The bar itself is versioned
+    alongside, because a tier that got harder to reach is what separates a
+    project sliding back from a project standing still under a raised bar.
+
+    The checks are named rather than counted. A count is a lossy key — one
+    check clearing while another regressed leaves it identical, and the move
+    goes unrecorded — and a named list makes the file's own diff say which
+    check moved."""
+    history, path = load_history()
+    today = datetime.now(timezone.utc).date().isoformat()
+
+    tiers = {tier: list(bar.tiers.get(tier, [])) for tier in TIERS}
+    if not history["bar"] or history["bar"][-1]["tiers"] != tiers:
+        history["bar"].append({"date": today, "tiers": tiers})
+
+    moved = []
+    for row in rows:
+        series = history["repos"].setdefault(row["repo"], [])
+        entry = {"date": today, "tier": row["tier"], "gaps": list(row["gaps"])}
+        previous = series[-1] if series else None
+        if previous and (previous["tier"], previous["gaps"]) == (entry["tier"], entry["gaps"]):
+            continue
+        series.append(entry)
+        if previous:
+            ranks = [UNRANKED] + TIERS
+            was = previous["gaps"]
+            moved.append({
+                "repo": row["repo"], "url": row["url"],
+                "from": previous["tier"], "to": entry["tier"],
+                "cleared": [c for c in was if c not in entry["gaps"]],
+                "appeared": [c for c in entry["gaps"] if c not in was],
+                "regressed": ranks.index(entry["tier"]) < ranks.index(previous["tier"]),
+            })
+    with open(path, "w", encoding="utf-8") as handle:
+        yaml.safe_dump(history, handle, sort_keys=True, default_flow_style=False)
+    return moved
+
+
+def section_movement(moved):
+    if not moved:
+        return
+    print()
+    print(paint("  since the last recorded run", "1"))
+    for m in moved:
+        if m["regressed"]:
+            arrow = paint(f"{m['from']} -> {m['to']}", "31")
+        elif m["from"] != m["to"]:
+            arrow = paint(f"{m['from']} -> {m['to']}", "32")
+        else:
+            arrow = m["to"]
+        print(f"    {name_link(m['repo'], m['url'])}  {arrow}")
+        for label, checks, colour in (("cleared", m["cleared"], "32"),
+                                      ("now open", m["appeared"], "31")):
+            if checks:
+                named = ", ".join(CHECKS[c]["label"] for c in checks)
+                print(paint(f"        {label}: {named}", colour))
+
+
 def collect_behind(states, all_details):
     """Clones trailing origin, each with the notes that say how."""
     rows = []
@@ -1245,7 +1851,7 @@ def section_behind(rows, states, fix):
 # --------------------------------------------------------------------------- #
 
 # Every section reduces to the same three levels — group, item, step — so one
-# renderer draws all eight. A step is a line of detail and, where the terminal
+# renderer draws all ten. A step is a line of detail and, where the terminal
 # report would print a paste-ready command under it, that command.
 
 def plural(count, word, many=None):
@@ -1513,6 +2119,62 @@ def page_issues(groups_in, broken):
     return groups, "None"
 
 
+def page_alerts(rows, broken):
+    by_feed = {}
+    for r, alert in rows:
+        by_feed.setdefault(alert["feed"], []).append((r, alert))
+    groups = []
+    for feed in ALERT_FEEDS:
+        found = by_feed.get(feed) or []
+        if not found:
+            continue
+        groups.append(group(feed, [
+            item(f"{r['repo']} #{a['number']}", url=a["url"], meta=a["title"],
+                 tags=[a["severity"]] if a["severity"] else [],
+                 tone="risk" if severity_rank(a["severity"]) <= 1 else "warn",
+                 steps=[step(cells=[
+                     cell(a["detail"] or "", "mono dim"),
+                     cell(f"opened {fmt_date(a['created'])} "
+                          f"({age_days(a['created'])}d)", "when")])])
+            for r, a in found]))
+    if broken:
+        groups.append(group("Could not be listed", [
+            item(r["repo"], steps=[step(r["errors"]["alerts"], tone="risk")])
+            for r in broken], tone="risk"))
+    return groups, "No open security alerts"
+
+
+def page_maturity(rows, counts, broken, bar):
+    groups = []
+    for tier in [UNRANKED] + TIERS:
+        found = [row for row in rows if row["tier"] == tier]
+        if not found:
+            continue
+        items = []
+        for row in found:
+            steps = []
+            for check in row["gaps"]:
+                note = gap_note(row, check)
+                steps.append(step(CHECKS[check]["label"] + (f" — {note}" if note else ""),
+                                  command=gap_command(row, check),
+                                  tone="warn" if check in row["blocking"] else None,
+                                  advisory=not CHECKS[check]["fix"]))
+            steps += [step(f"{CHECKS[c]['label']} — excused: {why}")
+                      for c, why in row["excused"]]
+            items.append(item(
+                row["repo"], url=row["url"] + "/settings/security_analysis",
+                meta=f"{len(row['gaps'])} to go" if row["gaps"] else "at the bar",
+                tags=[row["next"]] if row["next"] else [],
+                tone="risk" if tier == UNRANKED else "warn" if row["gaps"] else "ok",
+                steps=steps))
+        groups.append(group(tier, items, note=f"{counts.get(tier, 0)} project(s)"))
+    if broken:
+        groups.append(group("Could not be measured", [
+            item(r["repo"], steps=[step(r["errors"]["maturity"], tone="risk")])
+            for r in broken], tone="risk"))
+    return groups, "Every project is at the bar"
+
+
 def page_behind(rows):
     items = []
     for state, notes in rows:
@@ -1535,6 +2197,8 @@ SECTION_UNITS = {
     "prs": ("open", "open"),
     "unreleased": ("project waiting", "projects waiting"),
     "issues": ("open", "open"),
+    "alerts": ("open alert", "open alerts"),
+    "maturity": ("project below the bar", "projects below the bar"),
     "behind": ("clone behind", "clones behind"),
 }
 
@@ -1555,6 +2219,11 @@ SECTION_TITLES = {
                    "Commits on the default branch since the last release or tag, "
                    "longest-waiting project first."),
     "issues": ("Open issues", "Grouped by milestone, soonest due date first."),
+    "alerts": ("Open security alerts",
+               "Dependabot, code scanning and secret scanning, most severe first."),
+    "maturity": ("Maturity",
+                 "Each project against the bar in " + MATURITY_FILE + ". Tiers are "
+                 "cumulative, and a starred check is what blocks the next one."),
     "behind": ("Clones behind origin",
                "The checked-out branch against its upstream, and the default "
                "branch against origin."),
@@ -1570,6 +2239,8 @@ def build_payload(found, wanted, owner, root, states, results, args):
         "prs": lambda: page_prs(*found["prs"]),
         "unreleased": lambda: page_unreleased(found["unreleased"], args.max_commits),
         "issues": lambda: page_issues(*found["issues"]),
+        "alerts": lambda: page_alerts(*found["alerts"]),
+        "maturity": lambda: page_maturity(*found["maturity"], args.bar),
         "behind": lambda: page_behind(found["behind"]),
     }
     sections = []
@@ -1698,7 +2369,7 @@ PAGE_TEMPLATE = r"""<!doctype html>
   }
   .totals .risk b { color: var(--risk); }
 
-  /* The run-order rail. The eight sections print in the order the work gets
+  /* The run-order rail. The ten sections print in the order the work gets
      done, so the ordinal is information: it is the sequence, not decoration. */
   .rail {
     display: flex; flex-wrap: wrap; gap: 2px 16px;
@@ -2341,6 +3012,9 @@ def main():
     parser.add_argument("--repo-limit", type=int, default=300,
                         help="max repos to enumerate (default: 300)")
     parser.add_argument("--jobs", type=int, default=8, help="parallel probes (default: 8)")
+    parser.add_argument("--no-record", action="store_true",
+                        help="leave {} alone; the maturity section records what "
+                             "moved otherwise".format(HISTORY_FILE))
     parser.add_argument("--json", action="store_true", help="emit raw JSON instead of a report")
     parser.add_argument("--out", help="where the page is written "
                                       "(default: output/repo-status.html beside this script)")
@@ -2368,6 +3042,14 @@ def main():
         ignore = load_ignore(enabled=not args.no_ignore)
     except IgnoreError as err:
         sys.exit(str(err))
+
+    try:
+        args.bar = load_maturity()
+    except MaturityError as err:
+        sys.exit(str(err))
+    if "maturity" in wanted and not args.bar:
+        sys.exit(f"{MATURITY_FILE} names no checks — the maturity section has no bar to "
+                 "measure against")
     # An explicit flag outranks the file.
     if args.include_archived:
         ignore.archived = False
@@ -2470,6 +3152,16 @@ def main():
         found["issues"] = collect_issues(results)
         if not quiet:
             section_issues(*found["issues"])
+    if "alerts" in wanted:
+        found["alerts"] = collect_alerts(results)
+        if not quiet:
+            section_alerts(*found["alerts"])
+    if "maturity" in wanted:
+        found["maturity"] = collect_maturity(results, args.bar)
+        if not quiet:
+            section_maturity(*found["maturity"], args.bar, args.all_details)
+            if not args.no_record:
+                section_movement(record_history(found["maturity"][0], args.bar))
     if "behind" in wanted:
         found["behind"] = collect_behind(states, args.all_details)
         if not quiet:
