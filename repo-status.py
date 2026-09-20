@@ -2062,32 +2062,71 @@ def section_movement(moved):
                 print(paint(f"        {label}: {named}", colour))
 
 
+def catch_up(s):
+    """The fast-forwards a trailing clone can take unattended, keyed by the
+    count each one clears.
+
+    An unclean tree, or a branch carrying commits of its own, takes a merge
+    someone has to watch, so it yields nothing."""
+    moves = {}
+    if s["behind"] and s["upstream"] and not s["ahead"] and not s["dirty"]:
+        moves["behind"] = ["git", "-C", s["path"], "merge", "--ff-only", s["upstream"]]
+    # The default branch isn't checked out here, so a merge can't reach it; a
+    # refspec fetch moves the ref and refuses anything that isn't a fast-forward.
+    if s["default_behind"] and not s["default_ahead"]:
+        moves["default_behind"] = ["git", "-C", s["path"], "fetch", "origin",
+                                   f"{s['default']}:{s['default']}"]
+    return moves
+
+
+def behind_note(text, tone="warn", command=None, advisory=False):
+    return {"text": text, "tone": tone, "command": command, "advisory": advisory}
+
+
 def collect_behind(states, all_details):
-    """Clones trailing origin, each with the notes that say how."""
+    """Clones trailing origin, each with the notes that say how — and, where the
+    fast-forward is one nobody has to watch, the command that settles it."""
     rows = []
     for s in sorted(states, key=lambda s: s["rel"].lower()):
         # Nothing to be behind: reconcile owns both of these, and repeating them
         # here would read as a fetch that failed for some other reason.
         if s["no_origin"] or s["origin_gone"]:
             if all_details:
-                rows.append((s, [{"text": "no origin remote" if s["no_origin"]
-                                  else "origin is gone — see reconcile", "tone": None}]))
+                rows.append((s, [behind_note("no origin remote" if s["no_origin"]
+                                             else "origin is gone — see reconcile",
+                                             tone=None)]))
             continue
         notes = []
         if s["fetch_error"]:
-            notes.append({"text": f"fetch failed: {s['fetch_error']}", "tone": "risk"})
+            notes.append(behind_note(f"fetch failed: {s['fetch_error']}", "risk"))
         if s["detached"]:
-            notes.append({"text": "detached HEAD", "tone": None})
+            notes.append(behind_note("detached HEAD", tone=None))
         elif not s["upstream"]:
-            notes.append({"text": "no upstream", "tone": None})
-        if s["behind"]:
-            notes.append({"text": f"{s['behind']} behind", "tone": "warn"})
-        if s["default_behind"]:
-            notes.append({"text": f"{s['default']} is {s['default_behind']} behind origin",
-                          "tone": "warn"})
+            notes.append(behind_note("no upstream", tone=None))
+        moves = catch_up(s)
+        visit = f"cd {s['path']}"
+        trailing = (
+            ("behind", s["behind"], f"{s['behind']} behind",
+             "uncommitted changes" if s["dirty"]
+             else plural(s["ahead"], "commit") + " of its own"),
+            ("default_behind", s["default_behind"],
+             f"{s['default']} is {s['default_behind']} behind origin",
+             plural(s["default_ahead"], "commit") + " of its own"),
+        )
+        for kind, count, said, held in trailing:
+            if not count:
+                continue
+            if kind in moves:
+                notes.append(behind_note(said, command=" ".join(moves[kind])))
+            else:
+                # A merge someone has to watch starts by standing in the clone,
+                # and a row says where once however many refs are held.
+                notes.append(behind_note(f"{said}, held by {held}",
+                                         command=visit, advisory=True))
+                visit = None
         if not notes and not all_details:
             continue
-        rows.append((s, notes or [{"text": "up to date", "tone": "ok"}]))
+        rows.append((s, notes or [behind_note("up to date", "ok")]))
     return rows
 
 
@@ -2111,27 +2150,20 @@ def section_behind(rows, states, fix):
         print(f"  {named}{' ' * (width - len(s['rel']))}  {branch:<24}  "
               + "; ".join(rendered))
         if not fix:
+            for n in notes:
+                if n["command"]:
+                    print("      " + n["command"])
             continue
-        if s["behind"] and not s["ahead"] and not s["dirty"] and s["upstream"]:
-            proc = subprocess.run(["git", "-C", s["path"], "merge", "--ff-only", s["upstream"]],
-                                  capture_output=True, text=True)
+        for kind, command in catch_up(s).items():
+            moved = branch if kind == "behind" else s["default"]
+            onto = s["upstream"] if kind == "behind" else f"origin/{s['default']}"
+            proc = subprocess.run(command, capture_output=True, text=True)
             if proc.returncode == 0:
-                print(f"      fast-forwarded {branch} to {s['upstream']}")
-                s["behind"] = 0
+                print(f"      fast-forwarded {moved} to {onto}")
+                s[kind] = 0
             else:
-                print(paint(f"      fast-forward failed: {first_line(proc.stderr)}", "31"))
-        # The default branch isn't checked out here, so a merge can't reach it;
-        # a refspec fetch moves the ref and refuses anything but a fast-forward.
-        if s["default_behind"] and not s["default_ahead"]:
-            default = s["default"]
-            proc = subprocess.run(
-                ["git", "-C", s["path"], "fetch", "origin", f"{default}:{default}"],
-                capture_output=True, text=True)
-            if proc.returncode == 0:
-                print(f"      fast-forwarded {default} to origin/{default}")
-                s["default_behind"] = 0
-            else:
-                print(paint(f"      {default} update failed: {first_line(proc.stderr)}", "31"))
+                print(paint(f"      {moved} fast-forward failed: "
+                            f"{first_line(proc.stderr)}", "31"))
 
 
 # --------------------------------------------------------------------------- #
@@ -2165,11 +2197,14 @@ def item(name, url=None, meta=None, tags=(), steps=(), command=None, tone=None):
             "steps": list(steps), "command": command, "tone": tone}
 
 
-def group(label, items, tone=None, note=None, info=False, dense=False):
+def group(label, items, tone=None, note=None, info=False, dense=False, rollup=False):
     """`info` marks a group that reports context rather than work to be done,
-    so it stays out of every count the page presents as a finding."""
+    so it stays out of every count the page presents as a finding.
+
+    `rollup` offers every command in the group at once, which only a group whose
+    commands are safe to run unread can carry."""
     return {"label": label, "tone": tone, "note": note, "info": info,
-            "dense": dense, "items": list(items)}
+            "dense": dense, "rollup": rollup, "items": list(items)}
 
 
 def page_reconcile(report, root):
@@ -2504,9 +2539,12 @@ def page_behind(rows):
             "warn" if any(n["tone"] == "warn" for n in notes) else "ok")
         items.append(item(
             state["rel"], meta=state["branch"] or "(detached)", tone=tone,
-            steps=[step(n["text"], tone=n["tone"]) for n in notes]))
-    return ([group("The checked-out branch, and the default branch", items)]
-            if items else []), "Every clone is level with origin"
+            steps=[step(n["text"], command=n["command"], tone=n["tone"],
+                        advisory=n["advisory"]) for n in notes]))
+    # What the rollup gathers is fast-forwards, which git refuses to make
+    # wherever they would lose anything — a batch you can take unread.
+    return ([group("The checked-out branch, and the default branch", items,
+                   rollup=True)] if items else []), "Every clone is level with origin"
 
 
 # What a section counts, so a tally reads as the thing itself rather than as a
@@ -2764,6 +2802,11 @@ PAGE_TEMPLATE = r"""<!doctype html>
   details[open] > summary > .mark::before { content: "\25BE"; }
 
   .grp { margin-top: 12px; }
+  /* Only a head that carries a rollup lays itself out; the rest stay the plain
+     run of label and note they read as. */
+  .grp-head.rollup { display: flex; align-items: baseline; }
+  .grp-copy { flex: none; padding: 1px 5px; font-size: 11px; border-color: transparent; }
+  .grp:hover .grp-copy, .grp-copy:focus-visible { border-color: var(--axis); }
   .grp-label { color: var(--ink-2); font-size: 12px; font-weight: 600; }
   .grp-note { color: var(--muted); font-size: 12px; margin-left: 8px; }
 
@@ -2941,6 +2984,7 @@ function folded(node, key) {
    all read one live index rather than the static payload. */
 const ROWS = [];
 const CARDS = [];
+const GROUPS = [];
 
 const RANK = { risk: 3, warn: 2, ok: 1 };
 function itemTone(group, it) {
@@ -3098,6 +3142,18 @@ function renderGroup(group, section, gi) {
   const head = el('div', 'grp-head');
   head.append(el('span', 'grp-label', group.label));
   if (group.note) head.append(el('span', 'grp-note', group.note));
+  if (group.rollup) {
+    head.classList.add('rollup');
+    const all = el('button', 'grp-copy');
+    all.type = 'button';
+    all.title = 'Copy every command in this group';
+    const roll = {group, button: all, commands: []};
+    all.addEventListener('click', () => {
+      copy(roll.commands.join('\n'), all, 'copy ' + roll.commands.length);
+    });
+    GROUPS.push(roll);
+    head.append(el('span', 'spacer'), all);
+  }
   box.append(head);
   const list = el('ul', 'items');
   group.items.forEach((it, ii) => {
@@ -3186,6 +3242,15 @@ function update() {
     row.gone = Boolean(state.dismissed[row.key]);
     row.shown = !row.gone && (!query || row.hay.includes(query));
     row.node.hidden = !row.shown;
+  }
+
+  /* A group's rollup offers what the page is showing right now, so a dismissal
+     or a filter drops out of it in the same pass as everything else. */
+  for (const roll of GROUPS) {
+    roll.commands = ROWS.filter(r => r.group === roll.group && r.shown)
+                        .flatMap(r => r.commands);
+    roll.button.hidden = roll.commands.length < 2;
+    roll.button.textContent = 'copy ' + roll.commands.length;
   }
 
   let dismissed = 0;

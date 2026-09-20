@@ -73,7 +73,11 @@ The two clone-tree housekeeping passes bracket them. `reconcile` opens them
 because the rest of the run reads the tree it repairs — with `--fix` it moves
 and clones before anything else probes. `behind` trails because a clone
 trailing origin costs nothing until you go to work in it, and `--fix`
-fast-forwards the clean ones without being asked.
+fast-forwards the clean ones without being asked — the same fast-forward it
+prints for you to paste when it is reporting rather than fixing. A branch
+carrying commits of its own, or a tree with uncommitted changes, takes a merge
+someone has to watch, so that row says what holds it and points at the clone
+instead.
 
 ### Upstream pull requests
 
@@ -281,7 +285,11 @@ the page sets that command as a code block, the heaviest element on the row, and
 copies it on click. A row carrying more than one takes them all at once with
 `copy N`. A command that takes you to the work rather than settling it — the
 `cd` under a dirty tree — is marked `advisory` and stays out of that copy and
-out of the `commands ready` figure, while staying copyable on its own.
+out of the `commands ready` figure, while staying copyable on its own. A group
+whose commands are safe to run unread carries the same `copy N` on its heading,
+over every row it is currently showing: `behind`'s fast-forwards are that group,
+since git refuses one that would lose anything. A group of deletions is not, and
+carries none.
 
 The sections carry their run order as a numbered rail across the top,
 which doubles as jump-nav and as the count at a glance. Colour is spent on one
