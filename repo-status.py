@@ -1492,7 +1492,7 @@ query($q: String!, $after: String) {
     nodes {
       ... on PullRequest {
         number title url createdAt updatedAt isDraft
-        repository { nameWithOwner owner { login } }
+        repository { nameWithOwner isArchived owner { login } }
         headRepository { nameWithOwner }
         headRepositoryOwner { login }
         baseRefName headRefName mergeable
@@ -1527,6 +1527,7 @@ def shape_upstream(pull, owner):
     return {
         "repo": repo,
         "repo_url": f"https://github.com/{repo}",
+        "archived": pull["repository"]["isArchived"],
         "number": pull["number"],
         "title": pull["title"],
         "url": pull["url"],
@@ -1549,6 +1550,7 @@ def shape_upstream(pull, owner):
         "behind": None,
         "ahead": None,
         "compare_error": None,
+        "fork": None,
     }
 
 
@@ -1587,9 +1589,44 @@ def compare_head(row):
     row["behind"], row["ahead"] = info.get("behind_by"), info.get("ahead_by")
 
 
+def fork_freshness(rows, owner, jobs):
+    """Every fork of yours a pull request was opened from, against its parent.
+
+    The default branch is where your next branch comes from, so a fork drifting
+    behind costs a rebase you haven't met yet. Read once per fork rather than
+    once per pull request, since a fork can carry several."""
+    forks = sorted({r["head_repo"] for r in rows if r["head_repo"]
+                    and (r["head_owner"] or "").lower() == owner.lower()})
+
+    def read(fork):
+        try:
+            info = gh_json(f"repos/{fork}")
+            parent = info.get("parent")
+            if not parent:
+                return fork, None
+            branch = info["default_branch"]
+            compared = gh_json(f"repos/{parent['full_name']}/compare/"
+                               f"{parent['default_branch']}...{fork.split('/')[0]}:{branch}")
+        except GhError as err:
+            return fork, {"branch": None, "parent": None, "behind": None,
+                          "error": str(err)}
+        return fork, {"branch": branch, "parent": parent["full_name"],
+                      "behind": compared.get("behind_by"), "error": None}
+
+    if not forks:
+        return {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
+        return {fork: state for fork, state in pool.map(read, forks) if state}
+
+
 def probe_upstream(owner, names, jobs):
-    """The search, and one comparison per pull request. Reads only."""
-    result = {"rows": [], "error": None}
+    """The search, and one comparison per pull request. Reads only.
+
+    An archived repo is read-only, so every command a row could carry is
+    refused by the API — `gh pr close` included. There is no state of the run
+    in which such a row is worth reading, so it is dropped before the
+    comparisons, where it would cost a call apiece."""
+    result = {"rows": [], "held": [], "forks": {}, "error": None}
     try:
         rows = upstream_pulls(owner)
     except GhError as err:
@@ -1598,9 +1635,12 @@ def probe_upstream(owner, names, jobs):
     if names:
         named = {n.split("/")[-1].lower() for n in names}
         rows = [r for r in rows if r["repo"].split("/")[-1].lower() in named]
+    result["held"] = sorted({r["repo"] for r in rows if r["archived"]})
+    rows = [r for r in rows if not r["archived"]]
     if rows:
         with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
             list(pool.map(compare_head, rows))
+        result["forks"] = fork_freshness(rows, owner, jobs)
     result["rows"] = rows
     return result
 
@@ -1647,6 +1687,14 @@ def pressure(row):
     elif not row["reviewed"] and not row["reviewers_asked"]:
         block("no reviewer", "nobody has been asked to review it",
               f"gh pr view {ref} --web", advisory=True)
+    fork = row["fork"] or {}
+    if fork.get("error"):
+        block("fork", f"could not compare {row['head_repo']} with its parent: "
+              f"{fork['error']}", mine=False, tone="risk")
+    elif fork.get("behind"):
+        block("fork behind", f"{row['head_repo']}'s {fork['branch']} is "
+              f"{plural(fork['behind'], 'commit')} behind {fork['parent']}",
+              f"gh repo sync {row['head_repo']}", mine=False, tone=None)
     if not any(b["mine"] for b in blocks):
         waited = age_days(row["last_word"] or row["created"])
         block("waiting", plural(waited, "day") + " since anyone but you touched it",
@@ -1667,13 +1715,14 @@ def collect_upstream(probe):
     """Open pull requests outside the account, the ones you can still move first."""
     rows = probe["rows"]
     for row in rows:
+        row["fork"] = probe["forks"].get(row["head_repo"])
         row["pressure"] = pressure(row)
         row["mine"] = any(b["mine"] for b in row["pressure"])
     rows.sort(key=lambda r: (0 if r["mine"] else 1, r["created"] or ""))
-    return rows, probe["error"]
+    return rows, probe["held"], probe["error"]
 
 
-def section_upstream(rows, error):
+def section_upstream(rows, held, error):
     heading("UPSTREAM PULL REQUESTS",
             "opened where you can't merge them, so the only lever is pressure\n"
             "the ones still waiting on you first, then oldest")
@@ -1681,6 +1730,11 @@ def section_upstream(rows, error):
     if error:
         print(paint(f"  could not search for them: {error}", "31"))
         return
+    if held:
+        named = ", ".join(name_link(repo, f"https://github.com/{repo}/pulls")
+                          for repo in held)
+        print(f"  archived, so read-only ({len(held)}): {named}")
+        print()
     if not rows:
         print("  none")
         return
@@ -2100,7 +2154,8 @@ def step(text=None, command=None, url=None, tone=None, cells=None, advisory=Fals
     """A line of detail and, where the report would print one, its command.
 
     An advisory command takes you to the work rather than settling it, so it
-    stays out of the copy-everything list while staying copyable on its own."""
+    stays out of the row's copy-all and out of the ready count, while staying
+    copyable on its own."""
     return {"text": text, "command": command, "url": url, "tone": tone,
             "cells": list(cells) if cells else None, "advisory": advisory}
 
@@ -2317,7 +2372,7 @@ def page_unreleased(detailed, max_commits):
     return groups, "Every released project is up to date"
 
 
-def page_upstream(rows, error):
+def page_upstream(rows, held, error):
     if error:
         return [group("Could not be searched for", [
             item("upstream pull requests", steps=[step(error, tone="risk")])],
@@ -2339,6 +2394,14 @@ def page_upstream(rows, error):
                                 ("Waiting on them", None, [r for r in rows if not r["mine"]])):
         if chosen:
             groups.append(group(label, [rendered(r) for r in chosen], tone=tone))
+    if held:
+        groups.append(group(
+            "Archived, so left out",
+            [item(repo, url=f"https://github.com/{repo}/pulls", tags=["read-only"])
+             for repo in held],
+            note="An archived repo is read-only, so nothing here can be closed, "
+                 "merged or commented on.",
+            info=True, dense=True))
     return groups, "None open"
 
 
@@ -2666,10 +2729,15 @@ PAGE_TEMPLATE = r"""<!doctype html>
      ARIA-wired div would have to reimplement, at both levels. */
   /* The toolbar is sticky, so a jump from the rail has to clear it. */
   .sect { border-bottom: 1px solid var(--grid); scroll-margin-top: 46px; }
+  /* The heading pins under the toolbar for as long as you are inside the
+     section, so the control that folds it is wherever you are reading rather
+     than back where you entered. It tucks under the taller toolbar rather than
+     leaving a gap for content to slide through. */
   .sect-head {
+    position: sticky; top: 45px; z-index: 1; background: var(--plane);
     display: grid; align-items: baseline; gap: 1px 10px; cursor: pointer;
     grid-template-columns: auto auto 1fr auto;
-    grid-template-areas: "mark ord title tally" ". . caption caption";
+    grid-template-areas: "mark ord title tally";
     padding: 12px 2px; list-style: none;
   }
   .sect-head::-webkit-details-marker { display: none; }
@@ -2677,8 +2745,8 @@ PAGE_TEMPLATE = r"""<!doctype html>
   .sect-head .mark { grid-area: mark; }
   .sect-head .ord { grid-area: ord; font-size: 11px; color: var(--muted); }
   .sect-head h2 { grid-area: title; font-size: 13px; font-weight: 600; margin: 0; }
-  .sect-head .caption {
-    grid-area: caption; color: var(--muted); font-size: 12px; max-width: 78ch;
+  .sect-body .caption {
+    color: var(--muted); font-size: 12px; max-width: 78ch; margin: 2px 0 12px;
   }
   .sect-head .tally {
     grid-area: tally; color: var(--muted); font-size: 12px;
@@ -2771,8 +2839,9 @@ PAGE_TEMPLATE = r"""<!doctype html>
 
   @media (max-width: 640px) {
     .sect-head {
+      top: 0;
       grid-template-columns: auto auto 1fr;
-      grid-template-areas: "mark ord title" ". . caption" ". . tally";
+      grid-template-areas: "mark ord title" ". . tally";
     }
     .sect-body { padding-left: 8px; }
     .bar { position: static; }
@@ -2803,7 +2872,6 @@ PAGE_TEMPLATE = r"""<!doctype html>
     <span class="spacer"></span>
     <button id="fold"></button>
     <button id="restore" hidden></button>
-    <button id="copyall"></button>
   </div>
 
   <div id="sections"></div>
@@ -2860,6 +2928,12 @@ function folded(node, key) {
     if (node._auto === node.open) return;
     node._auto = node.open;
     flag(state.shut, key, !node.open);
+    /* Folded from its pinned heading, a section leaves you scrolled past where
+       it used to end. The heading comes back to where you clicked it. Only a
+       toggle a person made reaches here, so `Collapse all` and the filter move
+       nothing. */
+    if (!node.open && node.classList.contains('sect')
+        && node.getBoundingClientRect().top < 0) node.scrollIntoView();
   });
 }
 
@@ -2918,7 +2992,7 @@ function codeBlock(text, advisory) {
   pre.append(el('code', null, text));
   box.append(pre);
   /* A command that takes you to the work rather than settling it stays out of
-     the copy-everything list, so the row says which kind it is. */
+     the row's copy-all, so the row says which kind it is. */
   if (advisory) box.append(el('span', 'flag', 'advisory'));
   const button = el('button', 'copy', 'copy');
   button.type = 'button';
@@ -3044,10 +3118,12 @@ function renderSection(section, index) {
 
   const head = el('summary', 'sect-head');
   head.append(el('span', 'mark'), el('span', 'ord mono', ordinal(index)),
-              el('h2', null, section.title),
-              el('span', 'tally'), el('span', 'caption', section.blurb));
+              el('h2', null, section.title), el('span', 'tally'));
   card.append(head);
   const body = el('div', 'sect-body');
+  /* The blurb says what the section is for, which is a question you have while
+     reading it, not while scanning the folded list of tallies. */
+  body.append(el('p', 'caption', section.blurb));
   card.append(body);
 
   if (section.skipped) {
@@ -3101,7 +3177,7 @@ function renderTotals(figures) {
 }
 
 /* One pass owns every derived number: a dismissal has to reach the tallies, the
-   rail, the totals and the copy list at once or the page contradicts itself. */
+   rail and the totals at once or the page contradicts itself. */
 function update() {
   const query = document.getElementById('q').value.trim().toLowerCase();
   const findingsOnly = document.getElementById('show').value === 'findings';
@@ -3157,11 +3233,6 @@ function update() {
     ...(dismissed ? [[dismissed, 'dismissed', false]] : []),
   ]);
 
-  const copyall = document.getElementById('copyall');
-  copyall.textContent = 'Copy ' + plural(commands.length, 'command');
-  copyall.disabled = commands.length === 0;
-  copyall._commands = commands;
-
   const restore = document.getElementById('restore');
   restore.hidden = dismissed === 0;
   restore.textContent = 'Put back ' + dismissed;
@@ -3192,11 +3263,6 @@ function init() {
   });
   renderRail();
 
-  document.getElementById('copyall').addEventListener('click', event => {
-    const button = event.currentTarget;
-    const label = 'Copy ' + plural(button._commands.length, 'command');
-    copy(button._commands.join('\n'), button, label);
-  });
   document.getElementById('restore').addEventListener('click', () => {
     state.dismissed = {};
     remember();
@@ -3361,7 +3427,7 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
         results = list(pool.map(lambda r: probe_repo(r, wanted, args.max_commits), repos))
 
-    upstream = {"rows": [], "error": None}
+    upstream = {"rows": [], "held": [], "forks": {}, "error": None}
     if "upstream" in wanted:
         upstream = probe_upstream(owner, args.repos, args.jobs)
 

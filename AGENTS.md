@@ -108,6 +108,21 @@ you have.
 `head gone` ends the row: a pull request whose fork is deleted has nothing left
 for the rest to describe.
 
+A pull request against an **archived** repo is left out, because an archived
+repo is read-only and the API refuses every command a row could carry — `gh pr
+close` among them. No flag brings it back: there is no state of the run in which
+the row is worth reading. The section still names the repos it left out, since
+that is the only trace of a pull request you may remember opening, and the drop
+runs before the comparisons so a left-out row costs no API call.
+
+A pull request opened from a fork of yours carries one more line, `fork behind`:
+the fork's default branch measured against its parent's, with the `gh repo sync`
+that closes it. Nobody is waiting on it, so it is not a blocker and does not
+move the row into the ones waiting on you — but the fork's default branch is
+where your next branch comes from, so it drifts quietly and charges you a rebase
+later. The comparison is read once per fork, since a fork can carry several pull
+requests.
+
 Being behind is read off `compare/<base>...<head owner>:<head>` rather than off
 `mergeStateStatus`, which reports `BEHIND` only where the repo requires an
 up-to-date branch — the count holds either way. A review or comment from CI is
@@ -115,7 +130,9 @@ not a maintainer waiting on an answer, so `__typename: Bot` and a `[bot]` login
 are both filtered out before any of this is counted.
 
 The section writes nothing. `--fix` passes it by for the reason it passes
-`maturity` by: every command here lands in someone else's project.
+`maturity` by: every command here reaches a repo on GitHub rather than the clone
+tree the rest of the run reconciles — a maintainer's project, or your own fork —
+and belongs with a person's judgement.
 
 ### Uncommitted and unpushed
 
@@ -262,9 +279,9 @@ there is goes to the commands.
 Where the terminal prints a paste-ready command under each actionable finding,
 the page sets that command as a code block, the heaviest element on the row, and
 copies it on click. A row carrying more than one takes them all at once with
-`copy N`, and `Copy N commands` takes the whole run. A command that takes you to
-the work rather than settling it — the `cd` under a dirty tree — is marked
-`advisory` and stays out of both lists while staying copyable on its own.
+`copy N`. A command that takes you to the work rather than settling it — the
+`cd` under a dirty tree — is marked `advisory` and stays out of that copy and
+out of the `commands ready` figure, while staying copyable on its own.
 
 The sections carry their run order as a numbered rail across the top,
 which doubles as jump-nav and as the count at a glance. Colour is spent on one
@@ -276,10 +293,19 @@ Sections and rows are both `<details>`, so folding is the browser's own —
 keyboard handling and all — rather than ARIA wired by hand. A section opens when
 it has work in it and stays folded when it came back clear, which makes
 `Collapse all` a second reading of the same page: every section, its tally, and
-nothing else. A search opens the sections holding matches, since a hit inside a
-folded one would otherwise be invisible; clearing it hands every section back to
-the state it started in. Jumping from the rail opens its target for the same
-reason.
+nothing else — the blurb saying what a section is for sits in its body, which is
+where you have the question. A search opens the sections holding matches, since
+a hit inside a folded one would otherwise be invisible; clearing it hands every
+section back to the state it started in. Jumping from the rail opens its target
+for the same reason.
+
+A section's heading pins under the toolbar for as long as you are inside the
+section, so the control that folds it is wherever you are reading rather than
+back where you entered, and the heading says which section you are in. Folding
+from a pinned heading would leave you scrolled past where the section used to
+end, so the heading returns to where you clicked it. Only a fold a person made
+is recovered that way; `Collapse all` and the filter move nothing, on the same
+`_auto` check that keeps them from rewriting what you folded.
 
 A row you have dealt with is dismissed, and the tally, the rail, the figures at
 the top and the copy list all drop it in the same pass — a page that counted a
