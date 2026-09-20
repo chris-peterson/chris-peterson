@@ -7,6 +7,7 @@
 | Path | What it is |
 | --- | --- |
 | `README.md` | Rendered on the GitHub profile page. Points at the docs site. |
+| `justfile` | The front door. Bare `just` lists what there is to run; `just check` verifies what a run needs. |
 | `repo-status.py` | A cross-repo dashboard and reconciler for every project under the account |
 | `repo-viz.py` | A one-page chart of where attention went across those projects, week by week |
 | `ignore.yml` | The repos a scan skips, read by both scripts |
@@ -17,6 +18,28 @@
 | `.claude/commands/` | `/repo-status` and `/repo-viz`, each a thin wrapper mapping free-form arguments onto the script's flags |
 | `.claude/skills/` | `ratchet` and `triage-alerts`, which close what the report only measures |
 
+## justfile
+
+Bare `just` lists rather than runs: what the repo is, then every recipe under
+the question it answers — `start here`, `what is on the board`, `act on it`,
+`the pages`. Groups print in source order, so the file's order is the reading
+order.
+
+```bash
+just check                # gh, its auth, PyYAML, the clone tree, and both configs parsing
+just demo                 # one project, narrated end to end
+just repo moor            # one project, leaving the tier ledger alone
+just section unreleased   # one section; `just sections` names them
+just fix                  # the only recipe that writes
+```
+
+Every recipe takes the script's own flags after its arguments
+(`just status --all-details`), and the ones that narrow a run are dependencies
+on `status` rather than copies of it, so there is one place the command is
+built. `just check` is the only recipe that reaches into the scripts: it calls
+their loaders directly, so a config the run would reject is reported before the
+run costs an API call.
+
 ## repo-status.py
 
 Driven entirely through the `gh` CLI and `git`, with PyYAML the only import
@@ -24,7 +47,7 @@ outside the standard library. Run it from anywhere; it defaults to the
 authenticated user and a clone tree at `~/src/github/<owner>`.
 
 ```bash
-./repo-status.py                          # all ten sections, read-only
+./repo-status.py                          # all sections, read-only
 ./repo-status.py --only uncommitted       # one section
 ./repo-status.py --skip issues --skip prs
 ./repo-status.py --fix                    # reconcile, prompting before each delete
@@ -32,21 +55,67 @@ authenticated user and a clone tree at `~/src/github/<owner>`.
 ```
 
 Sections print in a fixed order, each one independently selectable with
-`--only` / `--skip`: `reconcile`, `uncommitted`, `local-branches`,
+`--only` / `--skip`: `upstream`, `reconcile`, `uncommitted`, `local-branches`,
 `orphan-branches`, `prs`, `unreleased`, `issues`, `alerts`, `maturity`,
 `behind`.
 
 ### The order they print in
 
+`upstream` leads because it is the only section about work you cannot finish
+yourself. Everything below it waits on you; an upstream pull request waits on a
+maintainer, and the clock has been running since you opened it.
+
 The middle eight run in the order the work gets done: find what only your disk
 holds, delete the branches that have served their purpose, audit the open PRs,
 see what has piled up since the last release, then the issues, then what the
 security feeds have turned up, then the standing bar every project is held to.
-The two clone-tree housekeeping passes bracket them. `reconcile` leads because
-the rest of the run reads the tree it repairs — with `--fix` it moves and clones before
-anything else probes. `behind` trails because a clone trailing origin costs
-nothing until you go to work in it, and `--fix` fast-forwards the clean ones
-without being asked.
+The two clone-tree housekeeping passes bracket them. `reconcile` opens them
+because the rest of the run reads the tree it repairs — with `--fix` it moves
+and clones before anything else probes. `behind` trails because a clone
+trailing origin costs nothing until you go to work in it, and `--fix`
+fast-forwards the clean ones without being asked.
+
+### Upstream pull requests
+
+Every open pull request you have opened in a repo outside the account — the
+ones you can't merge, where the only lever is the maintainer's attention. The
+README celebrates these once they land; this section is the half still in
+flight.
+
+They come from one `is:pr is:open author:<owner>` search rather than a probe per
+repo, because they sit where the account listing can't reach. Anything in the
+account's own namespace drops out and is `prs`' to report. `--repo <name>`
+narrows the search by repo name, so a run named at your fork carries the
+upstream pull requests against the project it came from.
+
+A row is what still stands between that pull request and a merge, and the
+section sorts on whether any of it is yours: spending a maintainer's attention
+before you have cleared every reason they could point at wastes the one lever
+you have.
+
+| Blocker | How it is read | What settles it |
+| --- | --- | --- |
+| head gone | the head repository answers null, so the fork is deleted | `gh pr close` — there is nothing left to merge |
+| changes requested | a human's latest review, bots filtered out | read what they said |
+| unresolved | review threads still open | read what they said |
+| conflict | `mergeable` is `CONFLICTING` | check it out and rebase |
+| behind | the base repo's own comparison of base against head | `gh pr update-branch --rebase` |
+| checks | the head commit's status rollup failed | `gh pr checks` |
+| draft | it is a draft, so nobody has been asked to look | `gh pr ready` |
+| no reviewer | nobody reviewed it and nobody was asked | ask someone |
+| waiting | nothing above is yours | nudge, with the days since anyone but you touched it |
+
+`head gone` ends the row: a pull request whose fork is deleted has nothing left
+for the rest to describe.
+
+Being behind is read off `compare/<base>...<head owner>:<head>` rather than off
+`mergeStateStatus`, which reports `BEHIND` only where the repo requires an
+up-to-date branch — the count holds either way. A review or comment from CI is
+not a maintainer waiting on an answer, so `__typename: Bot` and a `[bot]` login
+are both filtered out before any of this is counted.
+
+The section writes nothing. `--fix` passes it by for the reason it passes
+`maturity` by: every command here lands in someone else's project.
 
 ### Uncommitted and unpushed
 
@@ -72,6 +141,17 @@ Every clone belongs at `<root>/<repo name>`, flat. Grouping directories
 (`dotnet/sdk` for a clone of `chris-peterson/sdk`) are findings, not layouts —
 `reconcile` reports them and `--fix` moves them onto their own path, then
 removes the grouping directory it just emptied.
+
+### Where behind stops and reconcile starts
+
+`behind` measures a clone against origin, so a clone with no origin to measure
+against is `reconcile`'s finding rather than its own. Two shapes reach it: a
+work tree with no `origin` remote at all, which `reconcile` names among the
+clones it reports local state for, and one whose origin answers
+`Repository not found`, which `reconcile` reports as cloned but no longer on
+GitHub. Both leave `behind` before it counts anything; `--all-details` is where
+they still show, with the reason. Any other fetch failure is the clone's own
+and stays where it was found.
 
 ### What a run covers
 
@@ -126,8 +206,8 @@ wants.
 
 Every project a section names is an OSC 8 hyperlink to the subresource that
 section is about — the branch sections and `uncommitted` point at `/branches`,
-`unreleased` at `/releases`, `prs` at `/pulls`, `issues` at `/issues`, `behind`
-at the commit log of the branch it measured. The detail beside the name keeps
+`unreleased` at `/releases`, `prs` and `upstream` at `/pulls`, `issues` at
+`/issues`, `behind` at the commit log of the branch it measured. The detail beside the name keeps
 its own link, so a pull request row carries both the repo's PR list and that
 pull request. A clone's link is built from the `owner/name` parsed out of its
 `origin`, never from the directory it sits in. Where output isn't a terminal
@@ -186,7 +266,7 @@ copies it on click. A row carrying more than one takes them all at once with
 the work rather than settling it — the `cd` under a dirty tree — is marked
 `advisory` and stays out of both lists while staying copyable on its own.
 
-The ten sections carry their run order as a numbered rail across the top,
+The sections carry their run order as a numbered rail across the top,
 which doubles as jump-nav and as the count at a glance. Colour is spent on one
 thing: a left rule marks work only one clone holds. Groups flagged `info`
 (clones filtered out of the run, clones of other owners) report context rather
@@ -230,13 +310,18 @@ whatever remote data it needs inside `probe_repo` behind a `wanted` check so
 unselected sections cost no API calls, and call all three from `main` in report
 order.
 
+A section whose data isn't per-repo gets its own `probe_<name>` instead, called
+from `main` under the same `wanted` check — `upstream` searches once across
+GitHub rather than asking each repo. The probe is where the reading lives either
+way, so `collect_*` stays pure.
+
 The split is what keeps the two renderings honest: both read the same findings,
 so a section cannot say one thing in the terminal and another on the page.
 `collect_*` must stay free of side effects — it runs even under `--json`, where
 nothing is printed and nothing is fixed.
 
 The page speaks in the same three levels for every section — `group`, `item`,
-`step` — so one renderer draws all ten. A step carries either `text` or
+`step` — so one renderer draws all  A step carries either `text` or
 `cells` (labelled spans that line up across rows), and optionally the command
 that settles it.
 

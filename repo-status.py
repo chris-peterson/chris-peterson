@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Report on the GitHub projects you own, and reconcile them with your local clones.
 
-Sections, in the order they print — the order the work gets done in, with the
-clone-tree housekeeping at either end:
+Sections, in the order they print — the work you can't finish alone first, then
+the order the rest gets done in, with the clone-tree housekeeping at either end:
 
+  upstream         open pull requests you opened in repos outside the account,
+                   and what still stands between each one and a merge
   reconcile        the clone tree under --root vs the repos you own on GitHub,
                    each clone expected at <root>/<repo name>
   uncommitted      dirty working trees, and commits no remote holds
@@ -12,6 +14,8 @@ clone-tree housekeeping at either end:
   prs              open pull requests
   unreleased       commits on the default branch since the last release or tag
   issues           open issues, grouped by milestone
+  alerts           open Dependabot, code scanning and secret scanning alerts
+  maturity         every project against the bar in maturity.yml
   behind           clones trailing origin, and the fetches that failed
 
 Remote state comes from the GitHub API through `gh`, so it reflects the server
@@ -41,7 +45,7 @@ from datetime import datetime, timedelta, timezone
 
 import yaml
 
-SECTIONS = ["reconcile", "uncommitted", "local-branches", "orphan-branches",
+SECTIONS = ["upstream", "reconcile", "uncommitted", "local-branches", "orphan-branches",
             "prs", "unreleased", "issues", "alerts", "maturity", "behind"]
 
 
@@ -924,10 +928,18 @@ def unpushed_work(path, branch, upstream, track):
             "kind": "gone" if upstream else "untracked", "upstream": upstream or None}
 
 
+# What a fetch says when the repo behind a clone's origin is gone — as against a
+# network or credential failure, which is the clone's own problem and stays in
+# the section that found it.
+ORIGIN_GONE = re.compile(r"Repository not found", re.I)
+
+
 def probe_clone(clone, default_branch, fetch):
     info = dict(clone)
     info.update({
         "fetch_error": None,
+        "no_origin": not clone["origin"],
+        "origin_gone": False,
         "branch": None,
         "detached": False,
         "dirty": 0,
@@ -943,11 +955,15 @@ def probe_clone(clone, default_branch, fetch):
     })
     path = clone["path"]
 
-    if fetch:
+    if fetch and not info["no_origin"]:
         proc = subprocess.run(["git", "-C", path, "fetch", "--prune", "--quiet", "origin"],
                               capture_output=True, text=True)
         if proc.returncode != 0:
-            info["fetch_error"] = first_line(proc.stderr) or f"git fetch exited {proc.returncode}"
+            message = first_line(proc.stderr) or f"git fetch exited {proc.returncode}"
+            if ORIGIN_GONE.search(message):
+                info["origin_gone"] = True
+            else:
+                info["fetch_error"] = message
 
     head = git(path, "rev-parse", "--abbrev-ref", "HEAD", check=False)
     info["detached"] = head == "HEAD"
@@ -1469,6 +1485,217 @@ def section_unreleased(detailed, max_commits):
             print(f"    … older commits not shown (newest {max_commits}; raise with --max-commits)")
 
 
+UPSTREAM_QUERY = """
+query($q: String!, $after: String) {
+  search(query: $q, type: ISSUE, first: 50, after: $after) {
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      ... on PullRequest {
+        number title url createdAt updatedAt isDraft
+        repository { nameWithOwner owner { login } }
+        headRepository { nameWithOwner }
+        headRepositoryOwner { login }
+        baseRefName headRefName mergeable
+        commits(last: 1) {
+          nodes { commit { committedDate statusCheckRollup { state } } }
+        }
+        reviewThreads(first: 100) { nodes { isResolved } }
+        latestReviews(first: 20) { nodes { state submittedAt author { login __typename } } }
+        reviewRequests(first: 1) { totalCount }
+        comments(last: 20) { nodes { createdAt author { login __typename } } }
+      }
+    }
+  }
+}
+"""
+
+
+def is_bot(actor):
+    """A review or comment from CI is not a maintainer waiting on an answer."""
+    login = (actor or {}).get("login") or ""
+    return (actor or {}).get("__typename") == "Bot" or login.endswith("[bot]")
+
+
+def shape_upstream(pull, owner):
+    repo = pull["repository"]["nameWithOwner"]
+    commit = ((pull["commits"]["nodes"] or [{}])[0] or {}).get("commit") or {}
+    reviews = [r for r in pull["latestReviews"]["nodes"] if not is_bot(r["author"])]
+    said = [c["createdAt"] for c in pull["comments"]["nodes"]
+            if not is_bot(c["author"])
+            and ((c["author"] or {}).get("login") or "").lower() != owner.lower()]
+    said += [r["submittedAt"] for r in reviews if r["submittedAt"]]
+    return {
+        "repo": repo,
+        "repo_url": f"https://github.com/{repo}",
+        "number": pull["number"],
+        "title": pull["title"],
+        "url": pull["url"],
+        "created": pull["createdAt"],
+        "updated": pull["updatedAt"],
+        "draft": pull["isDraft"],
+        "base": pull["baseRefName"],
+        "head": pull["headRefName"],
+        "head_repo": (pull["headRepository"] or {}).get("nameWithOwner"),
+        "head_owner": (pull["headRepositoryOwner"] or {}).get("login"),
+        "pushed": commit.get("committedDate"),
+        "checks": (commit.get("statusCheckRollup") or {}).get("state"),
+        "mergeable": pull["mergeable"],
+        "unresolved": sum(1 for t in pull["reviewThreads"]["nodes"] if not t["isResolved"]),
+        "changes_requested": sorted({r["author"]["login"] for r in reviews
+                                     if r["state"] == "CHANGES_REQUESTED"}),
+        "reviewed": [r["author"]["login"] for r in reviews if r["state"] != "PENDING"],
+        "reviewers_asked": pull["reviewRequests"]["totalCount"],
+        "last_word": max(said, default=None),
+        "behind": None,
+        "ahead": None,
+        "compare_error": None,
+    }
+
+
+def upstream_pulls(owner):
+    """Open pull requests you opened in repos outside the account.
+
+    One search rather than a probe per repo: these sit where the account
+    listing can't reach, which is the whole reason they get their own pass."""
+    found, cursor = [], None
+    while True:
+        variables = {"q": f"author:{owner} is:pr is:open"}
+        if cursor:
+            variables["after"] = cursor
+        page = gh_graphql(UPSTREAM_QUERY, **variables)["data"]["search"]
+        found += [n for n in page["nodes"] if n]
+        if not page["pageInfo"]["hasNextPage"]:
+            break
+        cursor = page["pageInfo"]["endCursor"]
+    return [shape_upstream(p, owner) for p in found
+            if p["repository"]["owner"]["login"].lower() != owner.lower()]
+
+
+def compare_head(row):
+    """The head branch against the base it wants to land on, read from the base repo.
+
+    `mergeStateStatus` reports BEHIND only where the repo requires an up-to-date
+    branch, so the count comes off the comparison itself and holds either way."""
+    if not row["head_repo"]:
+        return
+    path = f"repos/{row['repo']}/compare/{row['base']}...{row['head_owner']}:{row['head']}"
+    try:
+        info = gh_json(path)
+    except GhError as err:
+        row["compare_error"] = str(err)
+        return
+    row["behind"], row["ahead"] = info.get("behind_by"), info.get("ahead_by")
+
+
+def probe_upstream(owner, names, jobs):
+    """The search, and one comparison per pull request. Reads only."""
+    result = {"rows": [], "error": None}
+    try:
+        rows = upstream_pulls(owner)
+    except GhError as err:
+        result["error"] = str(err)
+        return result
+    if names:
+        named = {n.split("/")[-1].lower() for n in names}
+        rows = [r for r in rows if r["repo"].split("/")[-1].lower() in named]
+    if rows:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
+            list(pool.map(compare_head, rows))
+    result["rows"] = rows
+    return result
+
+
+def pressure(row):
+    """What stands between this pull request and a merge, yours to clear first.
+
+    You can't merge an upstream pull request, so the only lever is the
+    maintainer's attention — and every reason they could point at is one to
+    clear before spending it. A command that takes you to the conversation
+    rather than settling it is advisory, as it is everywhere else on the page."""
+    ref = f"{row['number']} -R {row['repo']}"
+    blocks = []
+
+    def block(label, text, command=None, advisory=False, mine=True, tone="warn"):
+        blocks.append({"label": label, "text": text, "command": command,
+                       "advisory": advisory, "mine": mine, "tone": tone})
+
+    if not row["head_repo"]:
+        block("head gone", f"the fork holding {row['head']} is gone, so there is "
+              "nothing left to merge", f"gh pr close {ref}", tone="risk")
+        return blocks
+    if row["changes_requested"]:
+        block("changes requested", ", ".join(row["changes_requested"]) + " asked for changes",
+              f"gh pr view {ref} --comments", advisory=True, tone="risk")
+    if row["unresolved"]:
+        block("unresolved", plural(row["unresolved"], "review thread") + " left open",
+              f"gh pr view {ref} --comments", advisory=True, tone="risk")
+    if row["mergeable"] == "CONFLICTING":
+        block("conflict", f"conflicts with {row['base']}", f"gh pr checkout {ref}",
+              advisory=True, tone="risk")
+    elif row["behind"]:
+        block("behind", f"{plural(row['behind'], 'commit')} behind {row['base']}",
+              f"gh pr update-branch --rebase {ref}")
+    if row["compare_error"]:
+        block("compare", f"could not compare with {row['base']}: {row['compare_error']}",
+              tone="risk")
+    if row["checks"] in ("FAILURE", "ERROR"):
+        block("checks", "checks are failing", f"gh pr checks {ref}",
+              advisory=True, tone="risk")
+    if row["draft"]:
+        block("draft", "still a draft, so nobody has been asked to look",
+              f"gh pr ready {ref}")
+    elif not row["reviewed"] and not row["reviewers_asked"]:
+        block("no reviewer", "nobody has been asked to review it",
+              f"gh pr view {ref} --web", advisory=True)
+    if not any(b["mine"] for b in blocks):
+        waited = age_days(row["last_word"] or row["created"])
+        block("waiting", plural(waited, "day") + " since anyone but you touched it",
+              f"gh pr comment {ref}", advisory=True, mine=False, tone=None)
+    return blocks
+
+
+def review_note(row):
+    """Who has looked at it, which is what a nudge has to be aimed at."""
+    if row["reviewed"]:
+        return "reviewed by " + ", ".join(sorted(set(row["reviewed"])))
+    if row["reviewers_asked"]:
+        return plural(row["reviewers_asked"], "reviewer") + " asked"
+    return "nobody asked"
+
+
+def collect_upstream(probe):
+    """Open pull requests outside the account, the ones you can still move first."""
+    rows = probe["rows"]
+    for row in rows:
+        row["pressure"] = pressure(row)
+        row["mine"] = any(b["mine"] for b in row["pressure"])
+    rows.sort(key=lambda r: (0 if r["mine"] else 1, r["created"] or ""))
+    return rows, probe["error"]
+
+
+def section_upstream(rows, error):
+    heading("UPSTREAM PULL REQUESTS",
+            "opened where you can't merge them, so the only lever is pressure\n"
+            "the ones still waiting on you first, then oldest")
+    print()
+    if error:
+        print(paint(f"  could not search for them: {error}", "31"))
+        return
+    if not rows:
+        print("  none")
+        return
+    for row in rows:
+        named = name_link(row["repo"], f"{row['repo_url']}/pulls")
+        print(f"  {named}" + link(f"#{row['number']}  {row['title']}", row["url"]))
+        print(f"      {row['head']} -> {row['base']}  {review_note(row)}  "
+              f"opened {fmt_date(row['created'])} ({age_days(row['created'])}d)")
+        for b in row["pressure"]:
+            line = f"      {b['label']}: {b['text']}"
+            print(paint(line, "31") if b["tone"] == "risk" else line)
+            if b["command"]:
+                print(f"        {b['command']}")
+
+
 def collect_prs(results):
     """Every open pull request across the account, oldest first."""
     broken = sorted((r for r in results if "pulls" in r["errors"]),
@@ -1785,6 +2012,13 @@ def collect_behind(states, all_details):
     """Clones trailing origin, each with the notes that say how."""
     rows = []
     for s in sorted(states, key=lambda s: s["rel"].lower()):
+        # Nothing to be behind: reconcile owns both of these, and repeating them
+        # here would read as a fetch that failed for some other reason.
+        if s["no_origin"] or s["origin_gone"]:
+            if all_details:
+                rows.append((s, [{"text": "no origin remote" if s["no_origin"]
+                                  else "origin is gone — see reconcile", "tone": None}]))
+            continue
         notes = []
         if s["fetch_error"]:
             notes.append({"text": f"fetch failed: {s['fetch_error']}", "tone": "risk"})
@@ -2083,6 +2317,31 @@ def page_unreleased(detailed, max_commits):
     return groups, "Every released project is up to date"
 
 
+def page_upstream(rows, error):
+    if error:
+        return [group("Could not be searched for", [
+            item("upstream pull requests", steps=[step(error, tone="risk")])],
+            tone="risk")], "None"
+
+    def rendered(row):
+        steps = [step(cells=[
+            cell(f"{row['head']} → {row['base']}", "mono dim"),
+            cell(review_note(row), "what"),
+            cell(f"opened {fmt_date(row['created'])} ({age_days(row['created'])}d)", "when")])]
+        steps += [step(f"{b['label']}: {b['text']}", command=b["command"],
+                       tone=b["tone"], advisory=b["advisory"]) for b in row["pressure"]]
+        return item(f"{row['repo']}#{row['number']}", url=row["url"], meta=row["title"],
+                    tags=["draft"] if row["draft"] else [],
+                    tone="risk" if row["mine"] else None, steps=steps)
+
+    groups = []
+    for label, tone, chosen in (("Waiting on you", "risk", [r for r in rows if r["mine"]]),
+                                ("Waiting on them", None, [r for r in rows if not r["mine"]])):
+        if chosen:
+            groups.append(group(label, [rendered(r) for r in chosen], tone=tone))
+    return groups, "None open"
+
+
 def page_prs(rows, broken):
     items = [item(f"{r['repo']}#{p['number']}", url=p["url"], meta=p["title"],
                   tags=["draft"] if p["draft"] else [],
@@ -2190,6 +2449,7 @@ def page_behind(rows):
 # What a section counts, so a tally reads as the thing itself rather than as a
 # uniform "finding" — 87 open issues are a backlog, not 87 problems.
 SECTION_UNITS = {
+    "upstream": ("upstream pull request", "upstream pull requests"),
     "reconcile": ("finding", "findings"),
     "uncommitted": ("clone at risk", "clones at risk"),
     "local-branches": ("clone to tidy", "clones to tidy"),
@@ -2203,6 +2463,9 @@ SECTION_UNITS = {
 }
 
 SECTION_TITLES = {
+    "upstream": ("Upstream pull requests",
+                 "Opened where you can't merge them, so the only lever is "
+                 "pressure. The ones still waiting on you first, then oldest."),
     "reconcile": ("Reconcile",
                   "The clone tree against the repos you own. Every clone belongs "
                   "at <root>/<repo name>, flat."),
@@ -2232,6 +2495,7 @@ SECTION_TITLES = {
 
 def build_payload(found, wanted, owner, root, states, results, args):
     builders = {
+        "upstream": lambda: page_upstream(*found["upstream"]),
         "reconcile": lambda: page_reconcile(found["reconcile"], root),
         "uncommitted": lambda: page_uncommitted(found["uncommitted"]),
         "local-branches": lambda: page_local_branches(found["local-branches"]),
@@ -3097,6 +3361,10 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
         results = list(pool.map(lambda r: probe_repo(r, wanted, args.max_commits), repos))
 
+    upstream = {"rows": [], "error": None}
+    if "upstream" in wanted:
+        upstream = probe_upstream(owner, args.repos, args.jobs)
+
     if args.include_release_commits:
         for r in results:
             r["ahead"] = r["ahead_raw"]
@@ -3108,6 +3376,11 @@ def main():
 
     quiet = args.json
     found = {}
+
+    if "upstream" in wanted:
+        found["upstream"] = collect_upstream(upstream)
+        if not quiet:
+            section_upstream(*found["upstream"])
 
     if "reconcile" in wanted:
         found["reconcile"] = collect_reconcile(repos, held, clones, root, owner, args.jobs)
@@ -3168,7 +3441,8 @@ def main():
             section_behind(found["behind"], states, args.fix)
 
     if args.json:
-        json.dump({"repos": results, "clones": states}, sys.stdout, indent=2)
+        json.dump({"repos": results, "clones": states, "upstream": upstream},
+                  sys.stdout, indent=2)
         print()
         return
 

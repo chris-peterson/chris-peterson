@@ -36,6 +36,11 @@ repos:
     - active-ruleset
     - no-open-alerts
     tier: baseline
+  - date: '2026-09-20'
+    gaps:
+    - dependabot-config
+    - active-ruleset
+    tier: baseline
   chris-peterson/assurance:
   - date: '2026-09-13'
     gaps:
@@ -149,6 +154,16 @@ repos:
     - topics
     - homepage
     - pr-checks
+    - active-ruleset
+    tier: unranked
+  - date: '2026-09-17'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - dependabot-config
+    - code-scanning
+    - topics
     - active-ruleset
     tier: unranked
   chris-peterson/not-yet:
