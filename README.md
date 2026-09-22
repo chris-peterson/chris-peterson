@@ -39,7 +39,7 @@
   </tr>
   <tr>
     <td><a href="https://chris-peterson.github.io/anchor/#/"><img alt="anchor" src="https://img.shields.io/badge/%20-anchor-282A36?style=flat-square&labelColor=8BE9FD"></a></td>
-    <td>Consistency across issues, reviews, commits, and releases</td>
+    <td>anchor your development practices.</td>
   </tr>
   <tr>
     <td><a href="https://chris-peterson.github.io/sextant/#/"><img alt="sextant" src="https://img.shields.io/badge/%20-sextant-282A36?style=flat-square&labelColor=50FA7B"></a></td>
