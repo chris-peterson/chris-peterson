@@ -23,31 +23,35 @@
 <table>
   <tr>
     <td width="196"><a href="https://chris-peterson.github.io/ClaudeWatch/#/"><img alt="ClaudeWatch" src="https://img.shields.io/badge/%20-ClaudeWatch-282A36?style=flat-square&labelColor=FF5555"></a></td>
-    <td width="480">Screens dangerous shell commands before they run</td>
+    <td width="480">ClaudeWatch: agents move fast; watch them closely.</td>
   </tr>
   <tr>
-    <td><a href="https://chris-peterson.github.io/shipshape/#/"><img alt="shipshape" src="https://img.shields.io/badge/%20-shipshape-282A36?style=flat-square&labelColor=FF5555"></a></td>
-    <td>Keeps Claude Code and your installed plugins current</td>
-  </tr>
-  <tr>
-    <td><a href="https://chris-peterson.github.io/beacon/#/"><img alt="beacon" src="https://img.shields.io/badge/%20-beacon-282A36?style=flat-square&labelColor=BD93F9"></a></td>
-    <td>At-a-glance awareness across concurrent Claude Code sessions</td>
+    <td><a href="https://chris-peterson.github.io/shipshape/#/"><img alt="shipshape" src="https://img.shields.io/badge/%20-shipshape-282A36?style=flat-square&labelColor=FFA3A3"></a></td>
+    <td>shipshape: your harness, current and tidy.</td>
   </tr>
   <tr>
     <td><a href="https://chris-peterson.github.io/tack/#/"><img alt="tack" src="https://img.shields.io/badge/%20-tack-282A36?style=flat-square&labelColor=BD93F9"></a></td>
-    <td>Remembers what you were working on between sessions</td>
+    <td>tack your progress across sessions.</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/beacon/#/"><img alt="beacon" src="https://img.shields.io/badge/%20-beacon-282A36?style=flat-square&labelColor=DBC5FC"></a></td>
+    <td>beacon what every session is doing.</td>
   </tr>
   <tr>
     <td><a href="https://chris-peterson.github.io/anchor/#/"><img alt="anchor" src="https://img.shields.io/badge/%20-anchor-282A36?style=flat-square&labelColor=8BE9FD"></a></td>
     <td>anchor your development practices.</td>
   </tr>
   <tr>
-    <td><a href="https://chris-peterson.github.io/sextant/#/"><img alt="sextant" src="https://img.shields.io/badge/%20-sextant-282A36?style=flat-square&labelColor=50FA7B"></a></td>
-    <td>Requirements in source control, synced with the code either direction</td>
+    <td><a href="https://chris-peterson.github.io/mate/#/"><img alt="mate" src="https://img.shields.io/badge/%20-mate-282A36?style=flat-square&labelColor=C0F3FE"></a></td>
+    <td>mate plugins to combine capabilities.</td>
   </tr>
   <tr>
     <td><a href="https://chris-peterson.github.io/cleat/#/"><img alt="cleat" src="https://img.shields.io/badge/%20-cleat-282A36?style=flat-square&labelColor=50FA7B"></a></td>
-    <td>Project instructions written once, in the file every AI tool reads</td>
+    <td>cleat your instructions once, for any agent.</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/sextant/#/"><img alt="sextant" src="https://img.shields.io/badge/%20-sextant-282A36?style=flat-square&labelColor=A0FCB8"></a></td>
+    <td>sextant: manages drift between spec and code.</td>
   </tr>
   <tr>
     <td><a href="https://chris-peterson.github.io/shipyard/#/"><img alt="shipyard" src="https://img.shields.io/badge/%20-shipyard-282A36?style=flat-square&labelColor=6272A4"></a></td>
