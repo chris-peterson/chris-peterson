@@ -103,7 +103,7 @@ you have.
 | changes requested | a human's latest review, bots filtered out | read what they said |
 | unresolved | review threads still open | read what they said |
 | conflict | `mergeable` is `CONFLICTING` | check it out and rebase |
-| behind | the base repo's own comparison of base against head | `gh pr update-branch --rebase` |
+| behind | the base repo's own comparison of base against head | sync the fork, rebase the branch onto the fork's base, force-push |
 | checks | the head commit's status rollup failed | `gh pr checks` |
 | draft | it is a draft, so nobody has been asked to look | `gh pr ready` |
 | no reviewer | nobody reviewed it and nobody was asked | ask someone |
@@ -115,9 +115,13 @@ for the rest to describe.
 A pull request against an **archived** repo is left out, because an archived
 repo is read-only and the API refuses every command a row could carry — `gh pr
 close` among them. No flag brings it back: there is no state of the run in which
-the row is worth reading. The section still names the repos it left out, since
-that is the only trace of a pull request you may remember opening, and the drop
-runs before the comparisons so a left-out row costs no API call.
+the row is worth reading, and neither the terminal nor the page names it. The
+drop runs before the comparisons, so a left-out row costs no API call.
+
+`behind` is settled in the fork's clone at `<root>/<fork name>`: `gh repo sync`
+brings the fork's base branch up to its parent's, then the head branch is
+rebased onto it and pushed with `--force-with-lease`. `gh pr update-branch`
+would do it in one call, but lands a merge commit on the branch.
 
 A pull request opened from a fork of yours carries one more line, `fork behind`:
 the fork's default branch measured against its parent's, with the `gh repo sync`

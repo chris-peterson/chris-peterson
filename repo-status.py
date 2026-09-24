@@ -1623,10 +1623,9 @@ def probe_upstream(owner, names, jobs):
     """The search, and one comparison per pull request. Reads only.
 
     An archived repo is read-only, so every command a row could carry is
-    refused by the API — `gh pr close` included. There is no state of the run
-    in which such a row is worth reading, so it is dropped before the
-    comparisons, where it would cost a call apiece."""
-    result = {"rows": [], "held": [], "forks": {}, "error": None}
+    refused by the API — `gh pr close` included. Its rows are dropped before
+    the comparisons, where they would cost a call apiece."""
+    result = {"rows": [], "forks": {}, "error": None}
     try:
         rows = upstream_pulls(owner)
     except GhError as err:
@@ -1635,7 +1634,6 @@ def probe_upstream(owner, names, jobs):
     if names:
         named = {n.split("/")[-1].lower() for n in names}
         rows = [r for r in rows if r["repo"].split("/")[-1].lower() in named]
-    result["held"] = sorted({r["repo"] for r in rows if r["archived"]})
     rows = [r for r in rows if not r["archived"]]
     if rows:
         with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
@@ -1645,7 +1643,7 @@ def probe_upstream(owner, names, jobs):
     return result
 
 
-def pressure(row):
+def pressure(row, root):
     """What stands between this pull request and a merge, yours to clear first.
 
     You can't merge an upstream pull request, so the only lever is the
@@ -1673,8 +1671,12 @@ def pressure(row):
         block("conflict", f"conflicts with {row['base']}", f"gh pr checkout {ref}",
               advisory=True, tone="risk")
     elif row["behind"]:
+        clone = os.path.join(root, row["head_repo"].split("/")[-1])
         block("behind", f"{plural(row['behind'], 'commit')} behind {row['base']}",
-              f"gh pr update-branch --rebase {ref}")
+              f"gh repo sync {row['head_repo']} --branch {row['base']} && "
+              f"git -C {clone} fetch origin && "
+              f"git -C {clone} rebase origin/{row['base']} {row['head']} && "
+              f"git -C {clone} push --force-with-lease origin {row['head']}")
     if row["compare_error"]:
         block("compare", f"could not compare with {row['base']}: {row['compare_error']}",
               tone="risk")
@@ -1711,18 +1713,18 @@ def review_note(row):
     return "nobody asked"
 
 
-def collect_upstream(probe):
+def collect_upstream(probe, root):
     """Open pull requests outside the account, the ones you can still move first."""
     rows = probe["rows"]
     for row in rows:
         row["fork"] = probe["forks"].get(row["head_repo"])
-        row["pressure"] = pressure(row)
+        row["pressure"] = pressure(row, root)
         row["mine"] = any(b["mine"] for b in row["pressure"])
     rows.sort(key=lambda r: (0 if r["mine"] else 1, r["created"] or ""))
-    return rows, probe["held"], probe["error"]
+    return rows, probe["error"]
 
 
-def section_upstream(rows, held, error):
+def section_upstream(rows, error):
     heading("UPSTREAM PULL REQUESTS",
             "opened where you can't merge them, so the only lever is pressure\n"
             "the ones still waiting on you first, then oldest")
@@ -1730,11 +1732,6 @@ def section_upstream(rows, held, error):
     if error:
         print(paint(f"  could not search for them: {error}", "31"))
         return
-    if held:
-        named = ", ".join(name_link(repo, f"https://github.com/{repo}/pulls")
-                          for repo in held)
-        print(f"  archived, so read-only ({len(held)}): {named}")
-        print()
     if not rows:
         print("  none")
         return
@@ -2407,7 +2404,7 @@ def page_unreleased(detailed, max_commits):
     return groups, "Every released project is up to date"
 
 
-def page_upstream(rows, held, error):
+def page_upstream(rows, error):
     if error:
         return [group("Could not be searched for", [
             item("upstream pull requests", steps=[step(error, tone="risk")])],
@@ -2429,14 +2426,6 @@ def page_upstream(rows, held, error):
                                 ("Waiting on them", None, [r for r in rows if not r["mine"]])):
         if chosen:
             groups.append(group(label, [rendered(r) for r in chosen], tone=tone))
-    if held:
-        groups.append(group(
-            "Archived, so left out",
-            [item(repo, url=f"https://github.com/{repo}/pulls", tags=["read-only"])
-             for repo in held],
-            note="An archived repo is read-only, so nothing here can be closed, "
-                 "merged or commented on.",
-            info=True, dense=True))
     return groups, "None open"
 
 
@@ -3492,7 +3481,7 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
         results = list(pool.map(lambda r: probe_repo(r, wanted, args.max_commits), repos))
 
-    upstream = {"rows": [], "held": [], "forks": {}, "error": None}
+    upstream = {"rows": [], "forks": {}, "error": None}
     if "upstream" in wanted:
         upstream = probe_upstream(owner, args.repos, args.jobs)
 
@@ -3509,7 +3498,7 @@ def main():
     found = {}
 
     if "upstream" in wanted:
-        found["upstream"] = collect_upstream(upstream)
+        found["upstream"] = collect_upstream(upstream, root)
         if not quiet:
             section_upstream(*found["upstream"])
 
