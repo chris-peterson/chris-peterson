@@ -166,6 +166,15 @@ repos:
     - topics
     - active-ruleset
     tier: unranked
+  - date: '2026-09-24'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - dependabot-config
+    - code-scanning
+    - active-ruleset
+    tier: unranked
   chris-peterson/not-yet:
   - date: '2026-09-13'
     gaps:

@@ -8,3 +8,5 @@ repos:
     reason: maintenance
   - name: moor
     reason: maintenance
+  - name: pinpoint
+    reason: maintenance
