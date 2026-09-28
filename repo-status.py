@@ -45,8 +45,8 @@ from datetime import datetime, timedelta, timezone
 
 import yaml
 
-SECTIONS = ["upstream", "reconcile", "uncommitted", "local-branches", "orphan-branches",
-            "prs", "unreleased", "issues", "alerts", "maturity", "behind"]
+SECTIONS = ["upstream", "reconcile", "alerts", "prs", "unreleased", "maturity", "behind",
+            "uncommitted", "local-branches", "orphan-branches", "issues"]
 
 
 IGNORE_FILE = "ignore.yml"
@@ -1394,6 +1394,8 @@ def collect_orphan_branches(results, clone_by_repo, stale_days):
             branch["merged"] = branch_merged_remotely(
                 clone["path"], r["branch"], branch["name"]) if clone else None
             branch["age_days"] = age_days(branch["date"])
+            branch["open_cr"] = None if branch["merged"] else (
+                f"gh pr create -R {r['repo']} -B {r['branch']} -H {branch['name']} --web")
         rows.append({"repo": r, "failed": {}, "orphans": orphans,
                      "names": [b["name"] for b in orphans]})
     return rows
@@ -1420,6 +1422,8 @@ def section_orphan_branches(rows, stale_days, fix, assume_yes):
             aged = f"{days}d" if days is not None else "unknown age"
             label = f"    {branch['name']}  {branch['sha']}  {fmt_date(branch['date'])} ({aged}){merged}"
             print(link(label, f"{r['url']}/tree/{branch['name']}"))
+            if branch["open_cr"]:
+                print(paint(f"      {branch['open_cr']}", "32"))
         names = row["names"]
         command = ["git", "push", f"git@github.com:{r['repo']}.git", "--delete", *names]
         if fix:
@@ -1430,7 +1434,7 @@ def section_orphan_branches(rows, stale_days, fix, assume_yes):
                 else:
                     print(paint(f"      delete failed: {first_line(proc.stderr)}", "31"))
         else:
-            print("      " + " ".join(command))
+            print(paint("      " + " ".join(command), "31"))
     if not rows:
         print()
         print("  none")
@@ -1440,12 +1444,17 @@ def unreleased_failure(r):
     return r["errors"].get("unreleased")
 
 
-def collect_unreleased(results, all_details):
+def collect_unreleased(results, clone_by_repo, all_details):
     """Released projects with commits since their marker, longest-waiting first."""
     released = [r for r in results if r["release"] or unreleased_failure(r)]
     ordered = sorted(released,
                      key=lambda r: (unreleased_failure(r) is not None, r["oldest"] or "~"))
-    return [r for r in ordered if all_details or r["ahead"] or unreleased_failure(r)]
+    rows = [r for r in ordered if all_details or r["ahead"] or unreleased_failure(r)]
+    for r in rows:
+        clone = clone_by_repo.get(r["repo"].lower())
+        r["release_command"] = (f"cd {clone['path']} && claude '/anchor:release'"
+                                if clone and r["ahead"] else None)
+    return rows
 
 
 def section_unreleased(detailed, max_commits):
@@ -1483,6 +1492,8 @@ def section_unreleased(detailed, max_commits):
             print(line)
         if r["truncated"]:
             print(f"    … older commits not shown (newest {max_commits}; raise with --max-commits)")
+        if r["release_command"]:
+            print(f"      {r['release_command']}")
 
 
 UPSTREAM_QUERY = """
@@ -1550,7 +1561,6 @@ def shape_upstream(pull, owner):
         "behind": None,
         "ahead": None,
         "compare_error": None,
-        "fork": None,
     }
 
 
@@ -1589,43 +1599,13 @@ def compare_head(row):
     row["behind"], row["ahead"] = info.get("behind_by"), info.get("ahead_by")
 
 
-def fork_freshness(rows, owner, jobs):
-    """Every fork of yours a pull request was opened from, against its parent.
-
-    The default branch is where your next branch comes from, so a fork drifting
-    behind costs a rebase you haven't met yet. Read once per fork rather than
-    once per pull request, since a fork can carry several."""
-    forks = sorted({r["head_repo"] for r in rows if r["head_repo"]
-                    and (r["head_owner"] or "").lower() == owner.lower()})
-
-    def read(fork):
-        try:
-            info = gh_json(f"repos/{fork}")
-            parent = info.get("parent")
-            if not parent:
-                return fork, None
-            branch = info["default_branch"]
-            compared = gh_json(f"repos/{parent['full_name']}/compare/"
-                               f"{parent['default_branch']}...{fork.split('/')[0]}:{branch}")
-        except GhError as err:
-            return fork, {"branch": None, "parent": None, "behind": None,
-                          "error": str(err)}
-        return fork, {"branch": branch, "parent": parent["full_name"],
-                      "behind": compared.get("behind_by"), "error": None}
-
-    if not forks:
-        return {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
-        return {fork: state for fork, state in pool.map(read, forks) if state}
-
-
 def probe_upstream(owner, names, jobs):
     """The search, and one comparison per pull request. Reads only.
 
     An archived repo is read-only, so every command a row could carry is
     refused by the API — `gh pr close` included. Its rows are dropped before
     the comparisons, where they would cost a call apiece."""
-    result = {"rows": [], "forks": {}, "error": None}
+    result = {"rows": [], "error": None}
     try:
         rows = upstream_pulls(owner)
     except GhError as err:
@@ -1638,7 +1618,6 @@ def probe_upstream(owner, names, jobs):
     if rows:
         with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
             list(pool.map(compare_head, rows))
-        result["forks"] = fork_freshness(rows, owner, jobs)
     result["rows"] = rows
     return result
 
@@ -1689,14 +1668,6 @@ def pressure(row, root):
     elif not row["reviewed"] and not row["reviewers_asked"]:
         block("no reviewer", "nobody has been asked to review it",
               f"gh pr view {ref} --web", advisory=True)
-    fork = row["fork"] or {}
-    if fork.get("error"):
-        block("fork", f"could not compare {row['head_repo']} with its parent: "
-              f"{fork['error']}", mine=False, tone="risk")
-    elif fork.get("behind"):
-        block("fork behind", f"{row['head_repo']}'s {fork['branch']} is "
-              f"{plural(fork['behind'], 'commit')} behind {fork['parent']}",
-              f"gh repo sync {row['head_repo']}", mine=False, tone=None)
     if not any(b["mine"] for b in blocks):
         waited = age_days(row["last_word"] or row["created"])
         block("waiting", plural(waited, "day") + " since anyone but you touched it",
@@ -1717,7 +1688,6 @@ def collect_upstream(probe, root):
     """Open pull requests outside the account, the ones you can still move first."""
     rows = probe["rows"]
     for row in rows:
-        row["fork"] = probe["forks"].get(row["head_repo"])
         row["pressure"] = pressure(row, root)
         row["mine"] = any(b["mine"] for b in row["pressure"])
     rows.sort(key=lambda r: (0 if r["mine"] else 1, r["created"] or ""))
@@ -2179,19 +2149,36 @@ def cell(text, cls=None):
     return {"text": text, "cls": cls}
 
 
-def step(text=None, command=None, url=None, tone=None, cells=None, advisory=False):
+def step(text=None, command=None, url=None, tone=None, cells=None, advisory=False,
+         intent=None):
     """A line of detail and, where the report would print one, its command.
 
     An advisory command takes you to the work rather than settling it, so it
     stays out of the row's copy-all and out of the ready count, while staying
-    copyable on its own."""
+    copyable on its own. `intent` colours the command: `go` builds something,
+    `stop` destroys it."""
     return {"text": text, "command": command, "url": url, "tone": tone,
-            "cells": list(cells) if cells else None, "advisory": advisory}
+            "cells": list(cells) if cells else None, "advisory": advisory,
+            "intent": intent}
 
 
-def item(name, url=None, meta=None, tags=(), steps=(), command=None, tone=None):
+def item(name, url=None, meta=None, tags=(), steps=(), command=None, tone=None,
+         titled=False, intent=None):
+    """`titled` puts the meta inside the name's link, for a row whose headline is
+    one thing — a pull request and its title — rather than a name and a note."""
     return {"name": name, "url": url, "meta": meta, "tags": list(tags),
-            "steps": list(steps), "command": command, "tone": tone}
+            "steps": list(steps), "command": command, "tone": tone,
+            "titled": titled, "intent": intent}
+
+
+AGE_STEPS = (7, 30, 90, 180)
+
+
+def age_cell(stamp):
+    """The opened date, marked on a green-to-red ramp by how long it has waited."""
+    days = age_days(stamp)
+    rung = sum(1 for bound in AGE_STEPS if days is not None and days > bound)
+    return cell(f"opened {fmt_date(stamp)} ({days}d)", f"when age age-{rung}")
 
 
 def group(label, items, tone=None, note=None, info=False, dense=False, rollup=False):
@@ -2323,7 +2310,9 @@ def page_local_branches(rows):
             steps=steps,
             command=" ".join(["git", "-C", state["path"], "branch", "-D", *row["branches"]])
             if row["branches"] else None))
-    return ([group("Served their purpose", items, tone="warn")] if items else
+    # A branch still carrying commits no remote has is held back before the
+    # command is built, so what the rollup gathers loses nothing.
+    return ([group("Served their purpose", items, tone="warn", rollup=True)] if items else
             []), "Nothing to clean up"
 
 
@@ -2347,7 +2336,8 @@ def page_orphan_branches(rows):
                 cells.append(cell(f"merged into {r['branch']}" if branch["merged"]
                                   else "not merged",
                                   "what" if branch["merged"] else "what warn"))
-            steps.append(step(cells=cells, url=f"{r['url']}/tree/{branch['name']}"))
+            steps.append(step(cells=cells, url=f"{r['url']}/tree/{branch['name']}",
+                              command=branch["open_cr"], advisory=True, intent="go"))
         if r["branches_truncated"]:
             steps.append(step("More than 100 branches; only the first 100 were checked",
                               tone="mute"))
@@ -2356,7 +2346,8 @@ def page_orphan_branches(rows):
             meta=plural(len(row["orphans"]), "branch", "branches") + " with no open PR",
             steps=steps,
             command=" ".join(["git", "push", f"git@github.com:{r['repo']}.git",
-                              "--delete", *row["names"]])))
+                              "--delete", *row["names"]]),
+            intent="stop"))
     groups = []
     if items:
         groups.append(group("No open PR, no recent commit", items, tone="warn"))
@@ -2390,6 +2381,8 @@ def page_unreleased(detailed, max_commits):
         if r["truncated"]:
             steps.append(step(f"Older commits not shown — newest {max_commits}; "
                               f"raise with --max-commits", tone="mute"))
+        if r["release_command"]:
+            steps.append(step(command=r["release_command"], advisory=True))
         items.append(item(
             r["repo"],
             url=f"{r['url']}/compare/{rel['tag']}...{r['branch']}",
@@ -2418,7 +2411,7 @@ def page_upstream(rows, error):
         steps += [step(f"{b['label']}: {b['text']}", command=b["command"],
                        tone=b["tone"], advisory=b["advisory"]) for b in row["pressure"]]
         return item(f"{row['repo']}#{row['number']}", url=row["url"], meta=row["title"],
-                    tags=["draft"] if row["draft"] else [],
+                    tags=["draft"] if row["draft"] else [], titled=True,
                     tone="risk" if row["mine"] else None, steps=steps)
 
     groups = []
@@ -2431,12 +2424,11 @@ def page_upstream(rows, error):
 
 def page_prs(rows, broken):
     items = [item(f"{r['repo']}#{p['number']}", url=p["url"], meta=p["title"],
-                  tags=["draft"] if p["draft"] else [],
+                  tags=["draft"] if p["draft"] else [], titled=True,
                   steps=[step(cells=[
                       cell(f"{p['head']} → {p['base']}", "mono dim"),
                       cell(f"by {p['author']}", "what"),
-                      cell(f"opened {fmt_date(p['created'])} "
-                           f"({age_days(p['created'])}d)", "when")])])
+                      age_cell(p["created"])])])
              for r, p in rows]
     groups = []
     if items:
@@ -2455,7 +2447,7 @@ def page_issues(groups_in, broken):
         groups.append(group(
             entry["title"], [
                 item(f"{r['repo']}#{issue['number']}", url=issue["url"],
-                     meta=issue["title"], tags=issue["labels"])
+                     meta=issue["title"], tags=issue["labels"], titled=True)
                 for r, issue in entry["items"]],
             note=due))
     if broken:
@@ -2476,7 +2468,7 @@ def page_alerts(rows, broken):
             continue
         groups.append(group(feed, [
             item(f"{r['repo']} #{a['number']}", url=a["url"], meta=a["title"],
-                 tags=[a["severity"]] if a["severity"] else [],
+                 tags=[a["severity"]] if a["severity"] else [], titled=True,
                  tone="risk" if severity_rank(a["severity"]) <= 1 else "warn",
                  steps=[step(cells=[
                      cell(a["detail"] or "", "mono dim"),
@@ -2661,6 +2653,12 @@ PAGE_TEMPLATE = r"""<!doctype html>
     --axis:     #c3c2b7;
     --block:    #edece6;
     --risk:     #eb6834;
+    --go:       #1baf7a;
+    --age-0:    #1baf7a;
+    --age-1:    #8cae2c;
+    --age-2:    #eda100;
+    --age-3:    #eb6834;
+    --age-4:    #d23c2c;
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
@@ -2673,6 +2671,12 @@ PAGE_TEMPLATE = r"""<!doctype html>
     --axis:     #383835;
     --block:    #1f1f1d;
     --risk:     #e0713f;
+    --go:       #199e70;
+    --age-0:    #199e70;
+    --age-1:    #86a634;
+    --age-2:    #c98500;
+    --age-3:    #d95926;
+    --age-4:    #e0473a;
   }
   @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) {
@@ -2686,6 +2690,12 @@ PAGE_TEMPLATE = r"""<!doctype html>
       --axis:     #383835;
       --block:    #1f1f1d;
       --risk:     #e0713f;
+      --go:       #199e70;
+      --age-0:    #199e70;
+      --age-1:    #86a634;
+      --age-2:    #c98500;
+      --age-3:    #d95926;
+      --age-4:    #e0473a;
     }
   }
 
@@ -2815,6 +2825,16 @@ PAGE_TEMPLATE = r"""<!doctype html>
              text-decoration: none; overflow-wrap: anywhere; }
   a.it-name { border-bottom: 1px solid var(--axis); }
   a.it-name:hover { border-bottom-color: var(--ink); }
+  /* A pull request's headline is one link, name and title together, so the
+     title reads as the way in rather than as a label beside it. */
+  a.it-link {
+    display: inline-flex; align-items: baseline; gap: 4px 8px; flex-wrap: wrap;
+    flex: 1 1 0; min-width: 0; color: inherit; text-decoration: none;
+  }
+  a.it-link .it-meta { color: var(--ink); border-bottom: 1px solid var(--axis); }
+  a.it-link:hover .it-meta { border-bottom-color: var(--ink); }
+  a.it-link .it-go { color: var(--muted); font-size: 11px; }
+  a.it-link:hover .it-go { color: var(--ink); }
   .it-meta { color: var(--ink-2); }
   .it.risk .it-meta { color: var(--risk); }
   .tag { color: var(--muted); font-size: 11px; background: var(--block); padding: 0 4px; }
@@ -2844,6 +2864,17 @@ PAGE_TEMPLATE = r"""<!doctype html>
   .st .warn, .st.warn { color: var(--ink); }
   .st.risk { color: var(--risk); }
   .st.ok { color: var(--muted); }
+  /* How long a pull request has waited, green to red. The swatch carries the
+     rung and the day count stays the text, so neither leans on the other. */
+  .st .age::before {
+    content: ""; display: inline-block; width: 7px; height: 7px;
+    border-radius: 50%; margin-right: 5px; background: var(--age);
+  }
+  .st .age-0 { --age: var(--age-0); }
+  .st .age-1 { --age: var(--age-1); }
+  .st .age-2 { --age: var(--age-2); }
+  .st .age-3 { --age: var(--age-3); }
+  .st .age-4 { --age: var(--age-4); }
 
   /* The command is the payload: the terminal report's whole promise is that
      every actionable finding carries the exact line that settles it. */
@@ -2859,6 +2890,10 @@ PAGE_TEMPLATE = r"""<!doctype html>
   }
   .code .copy { flex: none; border-color: transparent; padding: 1px 6px; font-size: 11px; }
   .code:hover .copy, .code .copy:focus-visible { border-color: var(--axis); }
+  /* A command that builds something and one that destroys it read apart at a
+     glance, on the same rule the copy state uses. */
+  .code.go { border-left-color: var(--go); }
+  .code.stop { border-left-color: var(--risk); }
   .code.done { border-left-color: var(--ink); }
   .code.failed { border-left-color: var(--risk); }
   .code .flag { flex: none; color: var(--muted); font-size: 11px; }
@@ -3019,8 +3054,8 @@ function mark(node, cls, said, label) {
   }, 2200);
 }
 
-function codeBlock(text, advisory) {
-  const box = el('div', 'code');
+function codeBlock(text, advisory, intent) {
+  const box = el('div', 'code' + (intent ? ' ' + intent : ''));
   const pre = el('pre');
   pre.append(el('code', null, text));
   box.append(pre);
@@ -3053,14 +3088,24 @@ function renderStep(st) {
   } else {
     li.append(stepBody(st));
   }
-  if (st.command) li.append(codeBlock(st.command, st.advisory));
+  if (st.command) li.append(codeBlock(st.command, st.advisory, st.intent));
   return li;
 }
 
 function itemHead(it, key, tag) {
   const head = el(tag, 'it-head');
   if (tag === 'summary') head.append(el('span', 'mark'));
-  if (it.url) {
+  if (it.url && it.titled) {
+    const a = el('a', 'it-link');
+    a.append(el('span', 'it-name mono', it.name));
+    if (it.meta) a.append(el('span', 'it-meta', it.meta));
+    a.append(el('span', 'it-go', '\u2197'));
+    a.href = it.url;
+    a.target = '_blank';
+    a.rel = 'noreferrer';
+    a.addEventListener('click', event => event.stopPropagation());
+    head.append(a);
+  } else if (it.url) {
     const a = el('a', 'it-name mono', it.name);
     a.href = it.url;
     a.target = '_blank';
@@ -3071,9 +3116,9 @@ function itemHead(it, key, tag) {
   } else {
     head.append(el('span', 'it-name mono', it.name));
   }
-  if (it.meta) head.append(el('span', 'it-meta', it.meta));
+  if (it.meta && !(it.url && it.titled)) head.append(el('span', 'it-meta', it.meta));
   for (const label of it.tags) head.append(el('span', 'tag', label));
-  head.append(el('span', 'spacer'));
+  if (!(it.url && it.titled)) head.append(el('span', 'spacer'));
 
   const acts = el('span', 'it-acts');
   const many = commandsOf(it, {advisory: false});
@@ -3115,7 +3160,7 @@ function renderItem(it, group, key) {
       for (const st of it.steps) steps.append(renderStep(st));
       wrap.append(steps);
     }
-    if (it.command) wrap.append(codeBlock(it.command, false));
+    if (it.command) wrap.append(codeBlock(it.command, false, it.intent));
     box.append(wrap);
     folded(box, key);
     li.append(box);
@@ -3481,7 +3526,7 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
         results = list(pool.map(lambda r: probe_repo(r, wanted, args.max_commits), repos))
 
-    upstream = {"rows": [], "forks": {}, "error": None}
+    upstream = {"rows": [], "error": None}
     if "upstream" in wanted:
         upstream = probe_upstream(owner, args.repos, args.jobs)
 
@@ -3519,6 +3564,28 @@ def main():
     clone_by_repo = {f"{c['owner']}/{c['name']}".lower(): c
                      for c in clones if c["owner"] and c["name"]}
 
+    if "alerts" in wanted:
+        found["alerts"] = collect_alerts(results)
+        if not quiet:
+            section_alerts(*found["alerts"])
+    if "prs" in wanted:
+        found["prs"] = collect_prs(results)
+        if not quiet:
+            section_prs(*found["prs"])
+    if "unreleased" in wanted:
+        found["unreleased"] = collect_unreleased(results, clone_by_repo, args.all_details)
+        if not quiet:
+            section_unreleased(found["unreleased"], args.max_commits)
+    if "maturity" in wanted:
+        found["maturity"] = collect_maturity(results, args.bar)
+        if not quiet:
+            section_maturity(*found["maturity"], args.bar, args.all_details)
+            if not args.no_record:
+                section_movement(record_history(found["maturity"][0], args.bar))
+    if "behind" in wanted:
+        found["behind"] = collect_behind(states, args.all_details)
+        if not quiet:
+            section_behind(found["behind"], states, args.fix)
     if "uncommitted" in wanted:
         found["uncommitted"] = collect_uncommitted(states, args.all_details)
         if not quiet:
@@ -3533,32 +3600,10 @@ def main():
         if not quiet:
             section_orphan_branches(found["orphan-branches"], args.stale_days,
                                     args.fix, args.yes)
-    if "prs" in wanted:
-        found["prs"] = collect_prs(results)
-        if not quiet:
-            section_prs(*found["prs"])
-    if "unreleased" in wanted:
-        found["unreleased"] = collect_unreleased(results, args.all_details)
-        if not quiet:
-            section_unreleased(found["unreleased"], args.max_commits)
     if "issues" in wanted:
         found["issues"] = collect_issues(results)
         if not quiet:
             section_issues(*found["issues"])
-    if "alerts" in wanted:
-        found["alerts"] = collect_alerts(results)
-        if not quiet:
-            section_alerts(*found["alerts"])
-    if "maturity" in wanted:
-        found["maturity"] = collect_maturity(results, args.bar)
-        if not quiet:
-            section_maturity(*found["maturity"], args.bar, args.all_details)
-            if not args.no_record:
-                section_movement(record_history(found["maturity"][0], args.bar))
-    if "behind" in wanted:
-        found["behind"] = collect_behind(states, args.all_details)
-        if not quiet:
-            section_behind(found["behind"], states, args.fix)
 
     if args.json:
         json.dump({"repos": results, "clones": states, "upstream": upstream},

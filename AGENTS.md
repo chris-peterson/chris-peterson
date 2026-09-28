@@ -55,9 +55,9 @@ authenticated user and a clone tree at `~/src/github/<owner>`.
 ```
 
 Sections print in a fixed order, each one independently selectable with
-`--only` / `--skip`: `upstream`, `reconcile`, `uncommitted`, `local-branches`,
-`orphan-branches`, `prs`, `unreleased`, `issues`, `alerts`, `maturity`,
-`behind`.
+`--only` / `--skip`: `upstream`, `reconcile`, `alerts`, `prs`, `unreleased`,
+`maturity`, `behind`, `uncommitted`, `local-branches`, `orphan-branches`,
+`issues`.
 
 ### The order they print in
 
@@ -65,19 +65,22 @@ Sections print in a fixed order, each one independently selectable with
 yourself. Everything below it waits on you; an upstream pull request waits on a
 maintainer, and the clock has been running since you opened it.
 
-The middle eight run in the order the work gets done: find what only your disk
-holds, delete the branches that have served their purpose, audit the open PRs,
-see what has piled up since the last release, then the issues, then what the
-security feeds have turned up, then the standing bar every project is held to.
-The two clone-tree housekeeping passes bracket them. `reconcile` opens them
-because the rest of the run reads the tree it repairs — with `--fix` it moves
-and clones before anything else probes. `behind` trails because a clone
-trailing origin costs nothing until you go to work in it, and `--fix`
-fast-forwards the clean ones without being asked — the same fast-forward it
-prints for you to paste when it is reporting rather than fixing. A branch
-carrying commits of its own, or a tree with uncommitted changes, takes a merge
-someone has to watch, so that row says what holds it and points at the clone
-instead.
+`reconcile` follows because the rest of the run reads the tree it repairs —
+with `--fix` it moves and clones before anything else probes.
+
+After that, the order is priority. `alerts` comes first, since an open security
+finding is exposure rather than backlog. Then the pull requests waiting on a
+review, what has piled up since the last release, and the standing bar every
+project is held to. `behind` follows: a clone trailing origin costs nothing
+until you go to work in it, and `--fix` fast-forwards the clean ones without
+being asked — the same fast-forward it prints for you to paste when it is
+reporting rather than fixing. A branch carrying commits of its own, or a tree
+with uncommitted changes, takes a merge someone has to watch, so that row says
+what holds it and points at the clone instead.
+
+The clone and branch hygiene passes come next — `uncommitted`, `local-branches`,
+`orphan-branches` — and `issues` closes the run, since it is the backlog you
+pick from rather than something the run asks you to settle.
 
 ### Upstream pull requests
 
@@ -122,14 +125,6 @@ drop runs before the comparisons, so a left-out row costs no API call.
 brings the fork's base branch up to its parent's, then the head branch is
 rebased onto it and pushed with `--force-with-lease`. `gh pr update-branch`
 would do it in one call, but lands a merge commit on the branch.
-
-A pull request opened from a fork of yours carries one more line, `fork behind`:
-the fork's default branch measured against its parent's, with the `gh repo sync`
-that closes it. Nobody is waiting on it, so it is not a blocker and does not
-move the row into the ones waiting on you — but the fork's default branch is
-where your next branch comes from, so it drifts quietly and charges you a rebase
-later. The comparison is read once per fork, since a fork can carry several pull
-requests.
 
 Being behind is read off `compare/<base>...<head owner>:<head>` rather than off
 `mergeStateStatus`, which reports `BEHIND` only where the repo requires an
@@ -292,8 +287,17 @@ copies it on click. A row carrying more than one takes them all at once with
 out of the `commands ready` figure, while staying copyable on its own. A group
 whose commands are safe to run unread carries the same `copy N` on its heading,
 over every row it is currently showing: `behind`'s fast-forwards are that group,
-since git refuses one that would lose anything. A group of deletions is not, and
-carries none.
+since git refuses one that would lose anything, and so are `local-branches`'
+deletions, since a branch still carrying commits no remote has is held back
+before the command is built. `orphan-branches`' remote deletions carry none.
+
+A command's left rule says which way it cuts: green builds something (the
+`gh pr create --web` offered under an orphaned branch that never merged), red
+destroys it (the remote delete that removes them). A pull request's headline is
+one link, repo, number and title together, so the title reads as the way in.
+Where a row has nothing to run, as in `prs`, the opened date carries a swatch on
+a green-to-red ramp by how long it has waited. `unreleased` offers
+`claude '/anchor:release'` from the project's clone, advisory like the `cd`.
 
 The sections carry their run order as a numbered rail across the top,
 which doubles as jump-nav and as the count at a glance. Colour is spent on one

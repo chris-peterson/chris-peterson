@@ -12,7 +12,7 @@ Run `./repo-status.py` from the repo root with the flags below, then report what
 
 | What was typed | Flag |
 | --- | --- |
-| a section name (`reconcile`, `uncommitted`, `local-branches`, `orphan-branches`, `prs`, `unreleased`, `issues`, `alerts`, `maturity`, `behind`) | `--only <section>`, repeatable |
+| a section name (`upstream`, `reconcile`, `alerts`, `prs`, `unreleased`, `maturity`, `behind`, `uncommitted`, `local-branches`, `orphan-branches`, `issues`) | `--only <section>`, repeatable |
 | `no <section>`, `skip <section>` | `--skip <section>`, repeatable |
 | a bare repo name | `--repo <name>`, repeatable |
 | `page`, `html`, `chart`, `open it` | `--open` |
