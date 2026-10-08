@@ -5,6 +5,8 @@ default:
     @echo "  A cross-repo dashboard for every project under a GitHub account:"
     @echo "  what is unfinished, what is unreleased, and where the weeks went."
     @echo ""
+    @echo "  The report  just status   every section, read-only, for the whole account"
+    @echo ""
     @echo "  New here?   just demo     one project, narrated end to end"
     @echo "  Broken?     just check    verify what every run needs"
     @echo ""
@@ -14,8 +16,39 @@ default:
     @echo "  Any recipe takes the script's own flags: just status --all-details"
     @echo ""
 
+# Every section, read-only, for the whole account
+[group('what is on the board')]
+status *args:
+    ./repo-status.py {{args}}
+
+# One project, leaving the tier ledger alone: just repo moor
+[group('what is on the board')]
+repo name *args: (status '--repo' name '--no-record' args)
+
+# One section: just section unreleased
+[group('what is on the board')]
+section name *args: (status '--only' name args)
+
+# The section names 'just section' takes, in the order a run prints them
+[group('what is on the board')]
+sections:
+    @python3 -c "import importlib.util as u; s = u.spec_from_file_location('rs', 'repo-status.py'); m = u.module_from_spec(s); s.loader.exec_module(m); print('\n'.join(m.SECTIONS))"
+
+# The same findings as JSON, for another tool
+[group('what is on the board')]
+status-json *args: (status '--json' args)
+
+# Where attention went, week by week: just viz 24
+[group('what is on the board')]
+viz months='12' *args:
+    ./repo-viz.py --months {{months}} {{args}}
+
+# Reconcile the clone tree and the branches, asking before each move or deletion
+[group('act on it')]
+fix *args: (status '--fix' args)
+
 # Verify what every run needs, and touch nothing
-[group('start here')]
+[group('first run')]
 check:
     #!/usr/bin/env bash
     set -uo pipefail
@@ -54,7 +87,7 @@ check:
     exit $fail
 
 # One project, narrated end to end, for someone who has never seen this
-[group('start here')]
+[group('first run')]
 demo repo='chris-peterson':
     #!/usr/bin/env bash
     set -euo pipefail
@@ -72,40 +105,9 @@ demo repo='chris-peterson':
     echo "    'just open' opens both pages."
 
 # Install the one dependency either script has
-[group('start here')]
+[group('first run')]
 install:
     python3 -m pip install -r requirements.txt
-
-# Every section, read-only, for the whole account
-[group('what is on the board')]
-status *args:
-    ./repo-status.py {{args}}
-
-# One project, leaving the tier ledger alone: just repo moor
-[group('what is on the board')]
-repo name *args: (status '--repo' name '--no-record' args)
-
-# One section: just section unreleased
-[group('what is on the board')]
-section name *args: (status '--only' name args)
-
-# The section names 'just section' takes, in the order a run prints them
-[group('what is on the board')]
-sections:
-    @python3 -c "import importlib.util as u; s = u.spec_from_file_location('rs', 'repo-status.py'); m = u.module_from_spec(s); s.loader.exec_module(m); print('\n'.join(m.SECTIONS))"
-
-# The same findings as JSON, for another tool
-[group('what is on the board')]
-status-json *args: (status '--json' args)
-
-# Where attention went, week by week: just viz 24
-[group('what is on the board')]
-viz months='12' *args:
-    ./repo-viz.py --months {{months}} {{args}}
-
-# Reconcile the clone tree and the branches, asking before each move or deletion
-[group('act on it')]
-fix *args: (status '--fix' args)
 
 # Open the pages the last run wrote
 [group('the pages')]

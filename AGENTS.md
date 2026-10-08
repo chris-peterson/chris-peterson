@@ -20,10 +20,11 @@
 
 ## justfile
 
-Bare `just` lists rather than runs: what the repo is, then every recipe under
-the question it answers — `start here`, `what is on the board`, `act on it`,
-`the pages`. Groups print in source order, so the file's order is the reading
-order.
+Bare `just` lists rather than runs: what the repo is, `just status` called out
+above everything else since it is the recipe a visit is usually for, then every
+recipe under the question it answers — `what is on the board`, `act on it`,
+`first run`, `the pages`. Groups print in source order, so the file's order is
+the reading order.
 
 ```bash
 just check                # gh, its auth, PyYAML, the clone tree, and both configs parsing
