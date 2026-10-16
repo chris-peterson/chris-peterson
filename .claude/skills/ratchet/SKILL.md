@@ -122,15 +122,9 @@ guessing at — the endpoint replaces the ruleset.
 
 Not every gap is worth closing. A repo with no dependency manifests has nothing
 for `dependabot-config` to watch; a scratch repo may never want a homepage. That
-is a real answer, and it belongs in `maturity.yml` rather than in a repo left
-permanently below the bar:
-
-```yaml
-exempt:
-  - name: <repo>
-    checks: [dependabot-config]
-    reason: no dependency manifests
-```
+is a real answer, and it belongs in `maturity.yml`'s `exempt:` list rather than
+in a repo left permanently below the bar. The entry's shape is in
+[AGENTS.md](../../../AGENTS.md#maturityyml).
 
 An excused check counts as cleared, so the repo can still reach its tier. Ask
 before adding one — an exemption is the ratchet slipping, and it should be a

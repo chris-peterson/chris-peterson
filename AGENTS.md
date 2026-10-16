@@ -6,7 +6,7 @@
 
 | Path | What it is |
 | --- | --- |
-| `README.md` | Rendered on the GitHub profile page. Points at the docs site. |
+| `README.md` | The GitHub profile page: the projects, each linked to its docs site, and the upstream contributions. Its conventions are in `.claude/rules/readme.md`. |
 | `justfile` | The front door. Bare `just` lists what there is to run; `just check` verifies what a run needs. |
 | `repo-status.py` | A cross-repo dashboard and reconciler for every project under the account |
 | `repo-viz.py` | A one-page chart of where attention went across those projects, week by week |
@@ -40,6 +40,11 @@ on `status` rather than copies of it, so there is one place the command is
 built. `just check` is the only recipe that reaches into the scripts: it calls
 their loaders directly, so a config the run would reject is reported before the
 run costs an API call.
+
+There is no test suite. Check a change to either script with `just check`, then
+a run narrowed to what you touched, `just repo <name>` or
+`just section <name>`. Add `--json` to compare the findings without the report
+around them, since every section's `collect_*` runs under it.
 
 ## repo-status.py
 
@@ -364,7 +369,7 @@ so a section cannot say one thing in the terminal and another on the page.
 nothing is printed and nothing is fixed.
 
 The page speaks in the same three levels for every section — `group`, `item`,
-`step` — so one renderer draws all  A step carries either `text` or
+`step` — so one renderer draws all of them. A step carries either `text` or
 `cells` (labelled spans that line up across rows), and optionally the command
 that settles it.
 
