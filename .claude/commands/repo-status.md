@@ -41,10 +41,11 @@ them. Closing a maturity gap is the `ratchet` skill's job, and working an alert
 is `triage-alerts`; name the skill when reporting rather than running the
 commands here.
 
-A `maturity` run appends to `maturity-history.yml` wherever a project's tier or
-gap count moved, and prints those moves under `since the last recorded run`. A
-regression prints red. `--no-record` holds the ledger back, which is what a
-single-repo run wants — the file is meant to hold whole-account sweeps.
+A `maturity` run appends to `maturity-history.yml` wherever a measured project's
+tier or open checks moved, and prints those moves under `since the last
+recorded run`. A regression prints red. `--no-record` holds the ledger back,
+which is what a run naming a repo the scan skips wants: nothing else would ever
+add to that repo's history.
 
 ## --fix
 

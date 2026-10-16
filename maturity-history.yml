@@ -267,6 +267,11 @@ repos:
     - dependabot-config
     - active-ruleset
     tier: unranked
+  - date: '2026-10-16'
+    gaps:
+    - dependabot-config
+    - active-ruleset
+    tier: baseline
   chris-peterson/pwsh-taglib:
   - date: '2026-09-13'
     gaps:

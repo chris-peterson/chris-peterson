@@ -221,12 +221,14 @@ feeds the `no-open-alerts` check.
 
 ### The ledger
 
-A `maturity` run appends to `maturity-history.yml`, and only where a project's
-tier or gap count actually moved — the file is a record of movement, not of
-runs. The bar is versioned into the same file beside it, because a tier that got
-harder to reach is what separates a project sliding back from one standing still
-under a raised bar. `--no-record` holds it back, which is what a single-repo run
-wants.
+A `maturity` run appends to `maturity-history.yml` for the repos it measured,
+and only where a project's tier or open checks actually moved — the file is a
+record of movement, not of runs, so a run narrowed with `--repo` records its
+repo and leaves the rest alone. The bar is versioned into the same file beside
+it, because a tier that got harder to reach is what separates a project sliding
+back from one standing still under a raised bar. `--no-record` holds it back,
+which is what `just repo` wants: it can name a repo the scan skips, and a
+history started there is one no whole-account run would ever add to.
 
 ### Where a name takes you
 

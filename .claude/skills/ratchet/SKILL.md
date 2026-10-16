@@ -12,12 +12,11 @@ and every change to a repo passes through here where it can be confirmed.
 ## Read the gaps first
 
 ```bash
-./repo-status.py --only maturity --no-record --repo <name> --json
+./repo-status.py --only maturity --repo <name> --json
 ```
 
 `--json` skips the report and the ledger, and puts each repo's `maturity` block
-where it can be read. `--no-record` keeps a single-repo run out of
-`maturity-history.yml`, which is meant to hold whole-account sweeps.
+where it can be read.
 
 Work the checks in tier order and stop at the end of the target tier. A repo
 reaches a tier by clearing every check in it *and* every earlier one, so
@@ -132,11 +131,14 @@ decision rather than a way around a gap.
 
 ## Close the loop
 
-Re-run the measurement once the changes are in, so the ledger records the move:
+Re-measure the repo once the changes are in, so the ledger records the move as
+it happens:
 
 ```bash
-./repo-status.py --only maturity
+./repo-status.py --only maturity --repo <name>
 ```
 
 The run prints what changed since the last recorded one, and appends to
-`maturity-history.yml` only where a tier or a gap count actually moved.
+`maturity-history.yml` only for the repos it measured, and only where a tier or
+the open checks moved. A run without `--repo` re-measures every project, which
+is the way to double-check the whole ledger.
