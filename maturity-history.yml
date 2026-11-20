@@ -106,6 +106,29 @@ repos:
     - code-scanning
     - active-ruleset
     tier: unranked
+  chris-peterson/fathom:
+  - date: '2026-11-02'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - description
+    - dependabot-config
+    - code-scanning
+    - topics
+    - homepage
+    - pr-checks
+    - active-ruleset
+    tier: unranked
+  - date: '2026-11-15'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - dependabot-config
+    - code-scanning
+    - active-ruleset
+    tier: unranked
   chris-peterson/futility:
   - date: '2026-09-13'
     gaps:
@@ -141,6 +164,28 @@ repos:
     - dependabot-config
     - code-scanning
     - pr-checks
+    - active-ruleset
+    tier: unranked
+  chris-peterson/masthead:
+  - date: '2026-11-15'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - description
+    - dependabot-config
+    - code-scanning
+    - topics
+    - active-ruleset
+    tier: unranked
+  - date: '2026-11-20'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - dependabot-config
+    - code-scanning
+    - topics
     - active-ruleset
     tier: unranked
   chris-peterson/mate:
@@ -299,6 +344,28 @@ repos:
     - pr-checks
     - active-ruleset
     tier: unranked
+  chris-peterson/rig:
+  - date: '2026-11-15'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - description
+    - dependabot-config
+    - code-scanning
+    - topics
+    - active-ruleset
+    tier: unranked
+  - date: '2026-11-20'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - dependabot-config
+    - code-scanning
+    - topics
+    - active-ruleset
+    tier: unranked
   chris-peterson/rmq-cli:
   - date: '2026-09-13'
     gaps:
@@ -335,6 +402,28 @@ repos:
     - license
     - dependabot-config
     - code-scanning
+    - active-ruleset
+    tier: unranked
+  chris-peterson/sonar:
+  - date: '2026-11-15'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - description
+    - dependabot-config
+    - code-scanning
+    - topics
+    - active-ruleset
+    tier: unranked
+  - date: '2026-11-20'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - dependabot-config
+    - code-scanning
+    - topics
     - active-ruleset
     tier: unranked
   chris-peterson/spiffy:
