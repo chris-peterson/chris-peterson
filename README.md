@@ -22,8 +22,16 @@
 
 <table>
   <tr>
-    <td width="196"><a href="https://chris-peterson.github.io/ClaudeWatch/#/"><img alt="ClaudeWatch" src="https://img.shields.io/badge/%20-ClaudeWatch-282A36?style=flat-square&labelColor=FF5555"></a></td>
-    <td width="480">ClaudeWatch: agents move fast; watch them closely.</td>
+    <td width="196"><a href="https://chris-peterson.github.io/rig/#/"><img alt="rig" src="https://img.shields.io/badge/%20-rig-282A36?style=flat-square&labelColor=FFB86C"></a></td>
+    <td width="480">rig: pick the plugins for the job.</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/sonar/#/"><img alt="sonar" src="https://img.shields.io/badge/%20-sonar-282A36?style=flat-square&labelColor=FFD8AE"></a></td>
+    <td>sonar: ping for what you're looking for.</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/ClaudeWatch/#/"><img alt="ClaudeWatch" src="https://img.shields.io/badge/%20-ClaudeWatch-282A36?style=flat-square&labelColor=FF5555"></a></td>
+    <td>ClaudeWatch: agents move fast; watch them closely.</td>
   </tr>
   <tr>
     <td><a href="https://chris-peterson.github.io/shipshape/#/"><img alt="shipshape" src="https://img.shields.io/badge/%20-shipshape-282A36?style=flat-square&labelColor=FFA3A3"></a></td>
@@ -52,6 +60,14 @@
   <tr>
     <td><a href="https://chris-peterson.github.io/sextant/#/"><img alt="sextant" src="https://img.shields.io/badge/%20-sextant-282A36?style=flat-square&labelColor=A0FCB8"></a></td>
     <td>sextant: manages drift between spec and code.</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/fathom/#/"><img alt="fathom" src="https://img.shields.io/badge/%20-fathom-282A36?style=flat-square&labelColor=78FB99"></a></td>
+    <td>fathom: one record of facts, rendered for each reader.</td>
+  </tr>
+  <tr>
+    <td><a href="https://chris-peterson.github.io/masthead/#/"><img alt="masthead" src="https://img.shields.io/badge/%20-masthead-282A36?style=flat-square&labelColor=C8FDD5"></a></td>
+    <td>masthead: put your docs where readers can see them.</td>
   </tr>
   <tr>
     <td><a href="https://chris-peterson.github.io/shipyard/#/"><img alt="shipyard" src="https://img.shields.io/badge/%20-shipyard-282A36?style=flat-square&labelColor=6272A4"></a></td>
