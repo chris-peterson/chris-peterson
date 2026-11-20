@@ -508,6 +508,12 @@ timezone rather than a baked-in one.
 The window is whole weeks, starting on a Monday at midnight UTC, so a week
 index is plain division and every bucket is the same width.
 
+Size is the one thing the API can't answer usefully: it reports bytes per
+language, which says nothing a reader cares about. Lines of code and files per
+language come from running `tokei` over each clone at `--root`
+(default `~/src/github/<owner>`). A repo with no clone there, or a run without
+`tokei` on the path, gets no counts rather than an estimate.
+
 ### What it draws
 
 Five views of one slice, scoped by a single filter row (window length, and
@@ -518,13 +524,15 @@ and the Forks toggle is what sorts them once they are there:
 
 - **focus** — weekly commits as a stacked area, one band per project. How much
   energy, and where it went.
-- **map** — every project against every week. Rows sort by the commit-weighted
-  mean week, so a project sits where its work actually falls rather than where
-  a single trailing commit does; the result is a diagonal, and reading down it
-  is reading the order attention moved in.
+- **map** — every project against every week. Rows sort by the week of their
+  first commit in the window, earliest on top, so the result is a staircase and
+  reading down it is reading the order projects were taken up. A `Map order`
+  control switches to most commits or to the latest commit.
 - **rhythm** — a weekday × hour punch card in the viewer's local time.
-- **treemap** — what the work amounts to: area is size, fill is commits in the
-  window, grouped by primary language.
+- **treemap** — what the work amounts to: area is lines of code (or files, or
+  commits), fill is commits in the window. Grouped by language, a project
+  written in several gets a tile in each, so a language's block is how much of
+  that language there is; commits carry no language and group under the primary.
 - **table** — every number the charts show, sortable.
 
 ### The encoding rules it holds to

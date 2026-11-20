@@ -158,15 +158,10 @@ query($owner: String!, $since: GitTimestamp!, $author: ID!, $cursor: String) {
         isFork
         isArchived
         isPrivate
-        diskUsage
         stargazerCount
         createdAt
         pushedAt
         primaryLanguage { name }
-        languages(first: 20, orderBy: {field: SIZE, direction: DESC}) {
-          totalSize
-          edges { size node { name } }
-        }
         defaultBranchRef {
           name
           target {
@@ -282,6 +277,42 @@ def gather(owner, author, start, weeks, progress=True, ignore=None):
     }
 
 
+def count_lines(payload, root, progress=True):
+    """Lines of code and files per language, read by tokei from each clone.
+
+    GitHub reports only bytes per language, so the counts come from the clone
+    tree. A repo with no clone at <root>/<name> gets no counts, and the treemap
+    names how many that left out rather than guessing at them."""
+    missing = [r["name"] for r in payload["repos"]
+               if not os.path.isdir(os.path.join(root, r["name"]))]
+    payload["root"] = root
+    try:
+        subprocess.run(["tokei", "--version"], capture_output=True, check=True)
+    except (OSError, subprocess.CalledProcessError):
+        if progress:
+            print("  tokei not found: lines and files left out "
+                  "(brew install tokei)", file=sys.stderr)
+        return
+    for repo in payload["repos"]:
+        if repo["name"] in missing:
+            continue
+        result = subprocess.run(
+            ["tokei", "--output", "json", os.path.join(root, repo["name"])],
+            capture_output=True, text=True)
+        if result.returncode != 0:
+            continue
+        langs = [{"name": name, "lines": stats["code"], "files": len(stats["reports"])}
+                 for name, stats in json.loads(result.stdout).items()
+                 if name != "Total" and stats["reports"]]
+        langs.sort(key=lambda l: (l["lines"], l["files"]), reverse=True)
+        repo["langs"] = langs
+        repo["lines"] = sum(l["lines"] for l in langs)
+        repo["files"] = sum(l["files"] for l in langs)
+    if missing and progress:
+        print(f"  no clone under {root} for {len(missing)} "
+              f"({', '.join(sorted(missing))})", file=sys.stderr)
+
+
 def shape(owner, author, node, since, start, progress):
     """One API node, flattened into what the page plots."""
     branch = node.get("defaultBranchRef") or {}
@@ -302,8 +333,6 @@ def shape(owner, author, node, since, start, progress):
         for d in dates)
     minutes = [m for m in minutes if m >= 0]
 
-    languages = [{"name": e["node"]["name"], "bytes": e["size"]}
-                 for e in node["languages"]["edges"]]
     primary = node.get("primaryLanguage") or {}
     everyone = (target.get("everyone") or {}).get("totalCount", 0)
 
@@ -315,13 +344,10 @@ def shape(owner, author, node, since, start, progress):
         "fork": node["isFork"],
         "archived": node["isArchived"],
         "private": node["isPrivate"],
-        "disk": node["diskUsage"] or 0,
         "stars": node["stargazerCount"],
         "created": node["createdAt"],
         "pushed": node["pushedAt"],
         "language": primary.get("name") or "None",
-        "languages": languages,
-        "bytes": node["languages"]["totalSize"] or 0,
         "commits": len(minutes),
         "everyone": everyone,
         "at": minutes,
@@ -541,10 +567,17 @@ TEMPLATE = r"""<!doctype html>
       <label><input type="checkbox" id="private" checked> Private</label>
     </div>
     <span class="spacer"></span>
+    <label class="field"><span>Map order</span>
+      <select id="order">
+        <option value="first">First commit</option>
+        <option value="commits">Most commits</option>
+        <option value="latest">Latest commit</option>
+      </select>
+    </label>
     <label class="field"><span>Treemap area</span>
       <select id="area">
-        <option value="bytes">Code (bytes)</option>
-        <option value="disk">Repo size on disk</option>
+        <option value="lines">Lines of code</option>
+        <option value="files">Files</option>
         <option value="commits">Commits in window</option>
       </select>
     </label>
@@ -620,7 +653,7 @@ const BANDS = DATA.repos.filter(r => r.commits > 0)
   .map(r => r.name);
 
 const state = {
-  weeks: WEEKS, area: 'bytes', group: 'language',
+  weeks: WEEKS, area: 'lines', group: 'language', order: 'first',
   forks: false, private: true,
   sort: 'commits', desc: true,
 };
@@ -628,16 +661,6 @@ const state = {
 /* ---------------------------------------------------------------- format */
 
 function fmtInt(n) { return n.toLocaleString('en-US'); }
-
-function fmtBytes(n) {
-  if (!n) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let i = 0, v = n;
-  while (v >= 1024 && i < units.length - 1) { v /= 1024; i += 1; }
-  return v.toFixed(i === 0 ? 0 : (v < 10 ? 1 : 0)) + ' ' + units[i];
-}
-
-function fmtDisk(kb) { return fmtBytes(kb * 1024); }
 
 function plural(n, one, many) { return fmtInt(n) + ' ' + (n === 1 ? one : many); }
 
@@ -716,8 +739,13 @@ function bandColor(name) {
 }
 
 const AREAS = {
-  bytes: { label: 'code', value: r => r.bytes, fmt: fmtBytes },
-  disk: { label: 'on disk', value: r => r.disk, fmt: fmtDisk },
+  /* `part` reads one language's share, so grouping by language can split a
+     project across every language it is written in. Commits carry no
+     language, so they group under the primary one. */
+  lines: { label: 'lines of code', value: r => r.lines || 0, part: l => l.lines,
+           fmt: fmtInt },
+  files: { label: 'files', value: r => r.files || 0, part: l => l.files,
+           fmt: fmtInt },
   commits: { label: 'commits', value: r => r.windowCommits, fmt: fmtInt },
 };
 
@@ -806,15 +834,23 @@ function hoverable(node, build) {
   node.addEventListener('blur', hideTip);
 }
 
-function repoTip(r) {
+function repoTip(r, lang) {
   const rows = [tipName(r.full)];
   if (r.description) rows.push(tipNote(r.description));
   rows.push(tipRow(plural(r.windowCommits, 'commit', 'commits'), 'you, in this window'));
   if (r.everyone > r.commits) {
     rows.push(tipRow(fmtInt(r.everyone - r.commits), 'commits by everyone else'));
   }
-  rows.push(tipRow(fmtBytes(r.bytes), 'of code, ' + r.language));
-  rows.push(tipRow(fmtDisk(r.disk), 'on disk'));
+  if (lang) {
+    rows.push(tipRow(fmtInt(lang.lines), 'lines of ' + lang.name +
+                     ', in ' + plural(lang.files, 'file', 'files')));
+  }
+  if (r.langs) {
+    rows.push(tipRow(fmtInt(r.lines), 'lines in all, in ' +
+                     plural(r.files, 'file', 'files')));
+  } else {
+    rows.push(tipRow('no clone', 'so no line count'));
+  }
   rows.push(tipRow(fmtAgo(r.pushed), 'last push'));
   if (r.stars) rows.push(tipRow(fmtInt(r.stars), r.stars === 1 ? 'star' : 'stars'));
   const flags = [r.fork ? 'fork' : null, r.archived ? 'archived' : null,
@@ -1019,19 +1055,36 @@ function renderFocus(rows) {
 SCRIPT += r"""
 /* ---------------------------------------------------------- attention map */
 
+/* Ties fall to the busier project, then the name, so an order is stable. */
+const byName = (a, b) => a.name.localeCompare(b.name);
+const MAP_ORDERS = {
+  first: {
+    caption: 'ordered by the week each project first saw a commit, earliest on top',
+    compare: (a, b) => a.firstWeek - b.firstWeek ||
+      b.windowCommits - a.windowCommits || byName(a, b),
+  },
+  commits: {
+    caption: 'ordered by commits in the window, busiest on top',
+    compare: (a, b) => b.windowCommits - a.windowCommits ||
+      b.lastWeek - a.lastWeek || byName(a, b),
+  },
+  latest: {
+    caption: 'ordered by the week each project last saw a commit, most recent on top',
+    compare: (a, b) => b.lastWeek - a.lastWeek ||
+      b.windowCommits - a.windowCommits || byName(a, b),
+  },
+};
+
 function renderMap(rows) {
   const host = document.getElementById('map');
   const caption = document.getElementById('map-caption');
   const legend = document.getElementById('map-legend');
   const n = state.weeks;
   const live = rows.filter(r => r.windowCommits > 0).map(r => {
-    let last = -1, weighted = 0;
-    r.weekly.forEach((v, i) => { if (v > 0) last = i; weighted += v * i; });
-    /* The commit-weighted mean week, so a project sorts by where its work
-       actually sits rather than by a single trailing commit. */
-    return Object.assign(Object.create(r),
-      { lastWeek: last, centre: weighted / r.windowCommits });
-  }).sort((a, b) => b.centre - a.centre || b.windowCommits - a.windowCommits);
+    let first = -1, last = -1;
+    r.weekly.forEach((v, i) => { if (v > 0) { if (first < 0) first = i; last = i; } });
+    return Object.assign(Object.create(r), { firstWeek: first, lastWeek: last });
+  }).sort(MAP_ORDERS[state.order].compare);
 
   legend.replaceChildren();
   if (!live.length) {
@@ -1100,8 +1153,8 @@ function renderMap(rows) {
   });
 
   const quiet = live.filter(r => r.lastWeek < n - 4).length;
-  caption.textContent = 'One row per project, one cell per week, ordered so the ' +
-    'projects whose commits sit latest in the window rise to the top. ' +
+  caption.textContent = 'One row per project, one cell per week, ' +
+    MAP_ORDERS[state.order].caption + '. ' +
     plural(live.length, 'project', 'projects') + ' saw a commit here' +
     (quiet ? '; the ' + quiet + ' greyed out have been quiet for a month or more.' : '.');
 }
@@ -1283,13 +1336,22 @@ function renderTreemap(rows) {
   let boxes = [];
   if (state.group === 'language') {
     const byLang = new Map();
+    const add = (name, item) => {
+      if (!byLang.has(name)) byLang.set(name, []);
+      byLang.get(name).push(item);
+    };
     for (const r of plotted) {
-      if (!byLang.has(r.language)) byLang.set(r.language, []);
-      byLang.get(r.language).push(r);
+      if (area.part && r.langs) {
+        for (const l of r.langs) {
+          if (area.part(l) > 0) add(l.name, { repo: r, lang: l, value: area.part(l) });
+        }
+      } else {
+        add(r.language, { repo: r, value: area.value(r) });
+      }
     }
     const groups = [...byLang.entries()].map(([name, members]) => ({
       name: name, members: members,
-      value: members.reduce((s, r) => s + area.value(r), 0),
+      value: members.reduce((s, m) => s + m.value, 0),
     }));
     for (const cell of squarify(groups, { x: 0, y: 0, w: frame.width, h: height })) {
       const g = cell.item;
@@ -1301,8 +1363,7 @@ function renderTreemap(rows) {
           frame.svg.appendChild(textNode(cell.x + 2, cell.y + 11, label, 'group-label'));
         }
       }
-      boxes = boxes.concat(squarify(
-        g.members.map(r => ({ repo: r, value: area.value(r) })),
+      boxes = boxes.concat(squarify(g.members,
         { x: cell.x, y: cell.y + header, w: cell.w, h: cell.h - header }));
     }
   } else {
@@ -1311,7 +1372,7 @@ function renderTreemap(rows) {
   }
 
   for (const box of boxes) {
-    const r = box.item.repo;
+    const r = box.item.repo, lang = box.item.lang, amount = box.item.value;
     const x = box.x + 1, y = box.y + 1, w = box.w - 2, h = box.h - 2;
     if (w < 1.5 || h < 1.5) continue;
     const step = tmStep(r.windowCommits);
@@ -1320,7 +1381,8 @@ function renderTreemap(rows) {
     const link = el('a', { href: r.url, target: '_blank', rel: 'noopener' });
     link.setAttribute('class', 'tile');
     const title = el('title');
-    title.textContent = r.full + ' — ' + area.fmt(area.value(r)) + ' ' + area.label +
+    title.textContent = r.full + ' — ' + area.fmt(amount) + ' ' + area.label +
+      (lang ? ' of ' + lang.name : '') +
       ', ' + plural(r.windowCommits, 'commit', 'commits') + ' in the window';
     link.appendChild(title);
     const rx = Math.min(3, w / 2, h / 2);
@@ -1335,14 +1397,14 @@ function renderTreemap(rows) {
     if (lines) {
       lines.forEach((line, i) => link.appendChild(
         textNode(x + 5, y + 13 + i * 13, line, null, { fill: ink, 'font-weight': '600' })));
-      const value = area.fmt(area.value(r));
+      const value = area.fmt(amount);
       const valueY = y + 13 + (lines.length - 1) * 13 + 14;
       if (valueY - y <= h - 4 && textWidth(value, 10.5) <= w - 10) {
         link.appendChild(textNode(x + 5, valueY, value, null,
           { fill: ink, 'font-size': '10.5', 'fill-opacity': '0.78' }));
       }
     }
-    hoverable(link, () => repoTip(r));
+    hoverable(link, () => repoTip(r, lang));
     frame.svg.appendChild(link);
   }
 
@@ -1362,9 +1424,12 @@ function renderTreemap(rows) {
   document.getElementById('tm-title').textContent = 'What it all adds up to';
   document.getElementById('tm-caption').textContent =
     'Tile area is ' + area.label + ', fill is commits in the window, grouped by ' +
-    (state.group === 'language' ? 'primary language' : 'nothing') +
+    (state.group !== 'language' ? 'nothing'
+      : area.part ? 'language, so a project written in several has a tile in each'
+      : 'primary language') +
     '. Click a tile to open it on GitHub.' +
     (dropped ? ' ' + dropped + ' with no ' + area.label +
+       (area.part ? ' (no clone under ' + DATA.root + ', or nothing tokei counts)' : '') +
        ' can only be reached in the table.' : '');
 }
 """
@@ -1422,8 +1487,10 @@ const COLUMNS = [
   { key: 'commits', label: 'Commits', num: true, get: r => r.windowCommits, fmt: fmtInt },
   { key: 'last', label: 'Last commit', num: true, get: lastCommit,
     fmt: v => (v ? fmtAgo(new Date(v).toISOString()) : 'none here') },
-  { key: 'bytes', label: 'Code', num: true, get: r => r.bytes, fmt: fmtBytes },
-  { key: 'disk', label: 'On disk', num: true, get: r => r.disk, fmt: fmtDisk },
+  { key: 'lines', label: 'Lines', num: true, get: r => r.lines ?? -1,
+    fmt: v => (v < 0 ? 'no clone' : fmtInt(v)) },
+  { key: 'files', label: 'Files', num: true, get: r => r.files ?? -1,
+    fmt: v => (v < 0 ? 'no clone' : fmtInt(v)) },
   { key: 'stars', label: 'Stars', num: true, get: r => r.stars, fmt: fmtInt },
   { key: 'flags', label: '', get: r => '',
     fmt: (_, r) => [r.fork ? 'fork' : null, r.archived ? 'archived' : null,
@@ -1515,6 +1582,7 @@ document.getElementById('generated').textContent =
   'commits you authored, ' + weekLabel(0) + ' onward, read ' + DATA.generated;
 
 bind('weeks', 'weeks', Number);
+bind('order', 'order');
 bind('area', 'area');
 bind('group', 'group');
 bind('forks', 'forks');
@@ -1567,6 +1635,8 @@ def main():
     parser.add_argument("--no-open", action="store_true", help="do not open the page")
     parser.add_argument("--no-ignore", action="store_true",
                         help=f"scan every repo, disregarding {IGNORE_FILE}")
+    parser.add_argument("--root", help="where the clones live, for counting lines "
+                                       "(default: ~/src/github/<owner>)")
     args = parser.parse_args()
 
     try:
@@ -1584,6 +1654,8 @@ def main():
     except GhError as err:
         print(f"gh: {err}", file=sys.stderr)
         return 1
+    root = os.path.expanduser(args.root or os.path.join("~/src/github", owner))
+    count_lines(payload, root)
 
     if args.json:
         json.dump(payload, sys.stdout, indent=2)
