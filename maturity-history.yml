@@ -166,6 +166,17 @@ repos:
     - pr-checks
     - active-ruleset
     tier: unranked
+  chris-peterson/lookout:
+  - date: '2026-11-27'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - dependabot-config
+    - code-scanning
+    - topics
+    - active-ruleset
+    tier: unranked
   chris-peterson/masthead:
   - date: '2026-11-15'
     gaps:
@@ -434,6 +445,20 @@ repos:
     - push-protection
     - dependabot-config
     - code-scanning
+    - active-ruleset
+    tier: unranked
+  chris-peterson/strmr:
+  - date: '2026-11-27'
+    gaps:
+    - dependabot-alerts
+    - security-updates
+    - private-reporting
+    - description
+    - dependabot-config
+    - code-scanning
+    - topics
+    - homepage
+    - pr-checks
     - active-ruleset
     tier: unranked
   chris-peterson/tack:
